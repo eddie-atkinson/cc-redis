@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"log"
 	"net"
@@ -10,10 +9,10 @@ import (
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
-	reader := bufio.NewReader(conn)
 
 	for {
-		_, err := reader.ReadString('\n')
+		b := make([]byte, 1024)
+		_, err := conn.Read(b)
 		if err != nil {
 			log.Println(err)
 			return
