@@ -8,10 +8,6 @@ import (
 	"os"
 )
 
-func pong(conn net.Conn) {
-	conn.Write([]byte("+PONG\r\n"))
-}
-
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
@@ -22,7 +18,7 @@ func handleConnection(conn net.Conn) {
 			log.Println(err)
 			return
 		}
-		pong(conn)
+		conn.Write([]byte("+PONG\r\n"))
 	}
 
 }
