@@ -30,7 +30,7 @@ func handleConnection(c net.Conn) {
 		case serde.Array:
 			writer.Write(commands.ExecuteCommand(v))
 		default:
-			writer.Write(serde.Error{Value: "Expected commands to be array"})
+			writer.Write(serde.NewError("Expected commands to be array"))
 		}
 	}
 

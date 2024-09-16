@@ -22,9 +22,9 @@ func TestBulkString_Marshal(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bs := BulkString{
-				Value: tt.fields.value,
-			}
+			bs := NewBulkString(
+				tt.fields.value,
+			)
 			if got := bs.Marshal(); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("BulkString.Marshal() = %v, want %v", got, tt.want)
 			}
@@ -49,9 +49,9 @@ func TestSimpleString_Marshal(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := SimpleString{
-				Value: tt.fields.value,
-			}
+			ss := NewSimpleString(
+				tt.fields.value,
+			)
 			if got := ss.Marshal(); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("SimpleString.Marshal() = %v, want %v", got, tt.want)
 			}

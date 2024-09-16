@@ -22,12 +22,12 @@ func TestArray_Marshal(t *testing.T) {
 		{
 			"Should marshal an array containing a bulk string correctly",
 			fields{[]Value{
-				BulkString{
-					Value: "hello",
-				},
-				BulkString{
-					Value: "world",
-				},
+				NewBulkString(
+					"hello",
+				),
+				NewBulkString(
+					"world",
+				),
 			}},
 			[]byte("*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n"),
 		},

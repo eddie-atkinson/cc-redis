@@ -7,7 +7,7 @@ import (
 
 func echo(arguments []serde.Value) serde.Value {
 	if len(arguments) != 1 {
-		return serde.Error{Value: fmt.Sprintf("ECHO expects %d argument, received: %d", 1, len(arguments))}
+		return serde.NewError(fmt.Sprintf("ECHO expects %d argument, received: %d", 1, len(arguments)))
 	}
 
 	echoValue := arguments[0]
@@ -16,6 +16,6 @@ func echo(arguments []serde.Value) serde.Value {
 	case serde.BulkString:
 		return v
 	default:
-		return serde.Error{Value: "Expected bulk string argument to ECHO"}
+		return serde.NewError("Expected bulk string argument to ECHO")
 	}
 }

@@ -22,9 +22,9 @@ func TestError_Marshal(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errorString := Error{
-				Value: tt.fields.value,
-			}
+			errorString := NewError(
+				tt.fields.value,
+			)
 			if got := errorString.Marshal(); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Error.Marshal() = %v, want %v", got, tt.want)
 			}
