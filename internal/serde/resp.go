@@ -90,7 +90,7 @@ func (r *Resp) readArray() (Array, error) {
 			return value, err
 		}
 
-		value.items = append(value.items, val)
+		value.Items = append(value.Items, val)
 	}
 	return value, nil
 }
@@ -109,7 +109,7 @@ func (r *Resp) readBulk() (Value, error) {
 
 	r.reader.Read(bulk)
 
-	value.value = string(bulk)
+	value.Value = string(bulk)
 
 	// Trim off the remaining \r\n
 	// TODO: really need to deal with non-terminating sequences here

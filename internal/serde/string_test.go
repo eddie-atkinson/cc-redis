@@ -23,7 +23,7 @@ func TestBulkString_Marshal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bs := BulkString{
-				value: tt.fields.value,
+				Value: tt.fields.value,
 			}
 			if got := bs.Marshal(); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("BulkString.Marshal() = %v, want %v", got, tt.want)

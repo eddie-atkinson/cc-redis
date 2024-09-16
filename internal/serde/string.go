@@ -15,15 +15,15 @@ func (s SimpleString) Marshal() []byte {
 }
 
 type BulkString struct {
-	value string
+	Value string
 }
 
 func (bs BulkString) Marshal() []byte {
 	var bytes []byte
 	bytes = append(bytes, BULK)
-	bytes = append(bytes, []byte(strconv.Itoa(len(bs.value)))...)
+	bytes = append(bytes, []byte(strconv.Itoa(len(bs.Value)))...)
 	bytes = append(bytes, []byte(CRLF)...)
-	bytes = append(bytes, []byte(bs.value)...)
+	bytes = append(bytes, []byte(bs.Value)...)
 	bytes = append(bytes, []byte(CRLF)...)
 	return bytes
 }

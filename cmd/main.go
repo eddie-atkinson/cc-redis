@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 
+	"codecrafters/internal/commands"
 	"codecrafters/internal/serde"
 )
 
@@ -24,9 +25,13 @@ func handleConnection(c net.Conn) {
 			fmt.Println("Error reading from the client: ", err.Error())
 			return
 		}
-		fmt.Printf("%v\n", value)
 
-		writer.Write(serde.SimpleString{Value: "OK"})
+		switch v := value.(type) {
+		case serde.Array:
+			writer.Write(commands.ExecuteCommand(v))
+		default:
+			writer.Write(serde.Error{Value: "Expected commands to be array"})
+		}
 	}
 
 }
