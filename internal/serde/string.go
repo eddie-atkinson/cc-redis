@@ -14,6 +14,10 @@ func (s SimpleString) Marshal() []byte {
 	return bytes
 }
 
+func (s SimpleString) Value() string {
+	return s.value
+}
+
 type BulkString struct {
 	value string
 }
@@ -26,6 +30,10 @@ func (bs BulkString) Marshal() []byte {
 	bytes = append(bytes, []byte(bs.value)...)
 	bytes = append(bytes, []byte(CRLF)...)
 	return bytes
+}
+
+func (s BulkString) Value() string {
+	return s.value
 }
 
 func Ok() SimpleString {

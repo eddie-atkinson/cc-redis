@@ -24,7 +24,7 @@ func set(args []serde.Value) serde.Value {
 	}
 
 	storeMutex.Lock()
-	store[key.Value] = value.Value
+	store[key.Value()] = value.Value()
 	storeMutex.Unlock()
 
 	return serde.Ok()

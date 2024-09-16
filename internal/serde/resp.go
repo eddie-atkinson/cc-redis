@@ -97,25 +97,21 @@ func (r *Resp) readArray() (Array, error) {
 
 func (r *Resp) readBulk() (Value, error) {
 
-	value := BulkString{""}
-
 	len, _, err := r.readInteger()
 
 	if err != nil {
-		return value, err
+		return NewBulkString(""), err
 	}
 
 	bulk := make([]byte, len)
 
 	r.reader.Read(bulk)
 
-	value.Value = string(bulk)
-
 	// Trim off the remaining \r\n
 	// TODO: really need to deal with non-terminating sequences here
 	r.readLine()
 
-	return value, nil
+	return NewBulkString(string(bulk)), nil
 }
 
 func (r *Resp) readSimpleString() (Value, error) {

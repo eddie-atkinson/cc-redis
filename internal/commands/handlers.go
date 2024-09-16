@@ -10,6 +10,7 @@ var handlers = map[string]func([]serde.Value) serde.Value{
 	"ping": ping,
 	"echo": echo,
 	"set":  set,
+	"get":  get,
 }
 
 func ExecuteCommand(command serde.Array) serde.Value {
@@ -19,7 +20,7 @@ func ExecuteCommand(command serde.Array) serde.Value {
 
 	switch v := command.Items[0].(type) {
 	case serde.BulkString:
-		handler, ok := handlers[strings.ToLower(v.Value)]
+		handler, ok := handlers[strings.ToLower(v.Value())]
 		if !ok {
 			return serde.NewError(fmt.Sprintf("Invalid command %s", command))
 		}
