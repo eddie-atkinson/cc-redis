@@ -28,7 +28,12 @@ func handleConnection(c net.Conn) {
 
 		switch v := value.(type) {
 		case serde.Array:
-			writer.Write(commands.ExecuteCommand(v))
+			commandArray, err := v.ToCommandArray()
+			if err != nil {
+				writer.Write(serde.NewError(err.Error()))
+			}
+
+			writer.Write(commands.ExecuteCommand(commandArray))
 		default:
 			writer.Write(serde.NewError("Expected commands to be array"))
 		}

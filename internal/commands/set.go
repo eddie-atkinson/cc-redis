@@ -2,30 +2,68 @@ package commands
 
 import (
 	"codecrafters/internal/serde"
+	"errors"
 	"fmt"
-	"sync"
+	"math"
+	"strconv"
+	"strings"
+	"time"
 )
 
-var store = map[string]string{}
-var storeMutex = sync.RWMutex{}
+type setArgs struct {
+	expiresAt uint64
+}
 
-func set(args []serde.Value) serde.Value {
-	// TODO (eatkinson): This is a simplification that I'm happy with for now.
-	// We also need to support expiry and other flags eventually
-	if len(args) != 2 {
-		return serde.NewError(fmt.Sprintf("Expected 2 arguments to SET, got %d", len(args)))
+type storedValue struct {
+	value     string
+	expiresAt uint64
+}
+
+func nowMilli() uint64 {
+	return uint64((time.Now().UnixNano() / int64(time.Millisecond)))
+}
+
+func parseSetArgs(args []string) (setArgs, error) {
+	// Retain the key until the heat death of the universe by default
+	parsedArgs := setArgs{math.MaxUint64}
+
+	// TODO (eatkinson): Support more arguments
+	for i := 0; i < len(args); i++ {
+		switch strings.ToLower(args[i]) {
+		case "px":
+			{
+				if i+1 == len(args) {
+					return parsedArgs, errors.New("PX must have expiry time")
+				}
+				expiry, err := strconv.Atoi(args[i+1])
+				if err != nil || expiry < 0 {
+					return parsedArgs, fmt.Errorf("expiry must be a positive integer")
+				}
+				parsedArgs.expiresAt = nowMilli() + uint64(expiry)
+				i++
+			}
+		}
+	}
+	return parsedArgs, nil
+}
+
+var store = newKVStore()
+
+func set(args []string) serde.Value {
+	if len(args) < 2 {
+		return serde.NewError("SET expects at least two arguments")
 	}
 
-	key, keyIsBulkString := args[0].(serde.BulkString)
-	value, valueIsBulkString := args[1].(serde.BulkString)
+	key := args[0]
+	value := args[1]
 
-	if !keyIsBulkString || !valueIsBulkString {
-		return serde.NewError("SET command requires both key and value to be bulk strings")
+	parsedArgs, err := parseSetArgs(args[2:])
+
+	if err != nil {
+		return serde.NewError(err.Error())
 	}
 
-	storeMutex.Lock()
-	store[key.Value()] = value.Value()
-	storeMutex.Unlock()
+	store.setKey(key, storedValue{value: value, expiresAt: parsedArgs.expiresAt})
 
-	return serde.Ok()
+	return serde.NewSimpleString("OK")
 }

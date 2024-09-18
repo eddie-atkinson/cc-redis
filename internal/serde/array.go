@@ -1,6 +1,9 @@
 package serde
 
-import "strconv"
+import (
+	"errors"
+	"strconv"
+)
 
 type Array struct {
 	Items []Value
@@ -17,4 +20,18 @@ func (a Array) Marshal() []byte {
 		bytes = append(bytes, v.Marshal()...)
 	}
 	return bytes
+}
+
+func (a Array) ToCommandArray() ([]string, error) {
+	stringArr := []string{}
+
+	for _, value := range a.Items {
+		switch valueType := value.(type) {
+		case BulkString:
+			stringArr = append(stringArr, valueType.Value())
+		default:
+			return stringArr, errors.New("commands array must be solely composed of bulk string")
+		}
+	}
+	return stringArr, nil
 }
