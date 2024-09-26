@@ -10,4 +10,4 @@ module codecrafters
 
 go 1.22
 
-require github.com/tilinna/clock v1.1.0 // indirect
+require github.com/tilinna/clock v1.1.0
