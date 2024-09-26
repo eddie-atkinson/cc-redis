@@ -1,33 +1,22 @@
-package commands
+package redis
 
 import (
 	"codecrafters/internal/serde"
+	"context"
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type setArgs struct {
-	expiresAt uint64
-}
-
-type storedValue struct {
-	value     string
-	expiresAt uint64
-}
-
-func nowMilli() uint64 {
-	return uint64((time.Now().UnixNano() / int64(time.Millisecond)))
+	expireInMs *uint64
 }
 
 func parseSetArgs(args []string) (setArgs, error) {
-	// Retain the key until the heat death of the universe by default
-	parsedArgs := setArgs{math.MaxUint64}
+	parsedArgs := setArgs{expireInMs: nil}
 
-	// TODO (eatkinson): Support more arguments
+	// TODO (eatkinson): Support more arguments and clean up the parsing here
 	for i := 0; i < len(args); i++ {
 		switch strings.ToLower(args[i]) {
 		case "px":
@@ -39,7 +28,10 @@ func parseSetArgs(args []string) (setArgs, error) {
 				if err != nil || expiry < 0 {
 					return parsedArgs, fmt.Errorf("expiry must be a positive integer")
 				}
-				parsedArgs.expiresAt = nowMilli() + uint64(expiry)
+				expiryPtr := new(uint64)
+				*expiryPtr = uint64(expiry)
+
+				parsedArgs.expireInMs = expiryPtr
 				i++
 			}
 		}
@@ -47,9 +39,7 @@ func parseSetArgs(args []string) (setArgs, error) {
 	return parsedArgs, nil
 }
 
-var store = newKVStore()
-
-func set(args []string) serde.Value {
+func (r Redis) set(ctx context.Context, args []string) serde.Value {
 	if len(args) < 2 {
 		return serde.NewError("SET expects at least two arguments")
 	}
@@ -63,7 +53,7 @@ func set(args []string) serde.Value {
 		return serde.NewError(err.Error())
 	}
 
-	store.setKey(key, storedValue{value: value, expiresAt: parsedArgs.expiresAt})
+	r.store.SetKeyWithExpiry(ctx, key, value, parsedArgs.expireInMs)
 
 	return serde.NewSimpleString("OK")
 }

@@ -1,11 +1,11 @@
-package commands
+package redis
 
 import (
 	"codecrafters/internal/serde"
 	"fmt"
 )
 
-func echo(arguments []string) serde.Value {
+func (r Redis) echo(arguments []string) serde.Value {
 	if len(arguments) != 1 {
 		return serde.NewError(fmt.Sprintf("ECHO expects %d argument, received: %d", 1, len(arguments)))
 	}
