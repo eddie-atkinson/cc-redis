@@ -11,11 +11,15 @@ import (
 )
 
 type Redis struct {
-	store kvstore.KVStore
+	store         kvstore.KVStore
+	configuration configurationOptions
 }
 
-func NewRedis() Redis {
-	return Redis{store: kvstore.NewKVStore()}
+func NewRedisWithConfig() Redis {
+	config := ParseConfigurationFromFlags()
+	store := kvstore.NewKVStore()
+
+	return Redis{store, config}
 }
 
 func (r Redis) HandleConnection(c net.Conn) {
@@ -62,6 +66,8 @@ func (r Redis) executeCommand(ctx context.Context, value serde.Value) serde.Valu
 		return r.set(ctx, commandArray[1:])
 	case "get":
 		return r.get(ctx, commandArray[1:])
+	case "config":
+		return r.config(commandArray[1:])
 	default:
 		return serde.NewError(fmt.Sprintf("invalid command %s", command))
 

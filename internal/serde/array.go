@@ -35,3 +35,7 @@ func (a Array) ToCommandArray() ([]string, error) {
 	}
 	return stringArr, nil
 }
+
+func NewArray(items []Value) Array {
+	return Array{Items: items}
+}
