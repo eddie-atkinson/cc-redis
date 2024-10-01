@@ -22,6 +22,10 @@ func NewRedisWithConfig() Redis {
 	return Redis{store, config}
 }
 
+func (r Redis) Init() error {
+	return r.processRDBFile(context.Background())
+}
+
 func (r Redis) HandleConnection(c net.Conn) {
 	defer c.Close()
 	for {

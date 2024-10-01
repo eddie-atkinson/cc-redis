@@ -12,6 +12,11 @@ func main() {
 	port := ":6379"
 
 	redis := redis.NewRedisWithConfig()
+	err := redis.Init()
+
+	if err != nil {
+		os.Exit(1)
+	}
 
 	fmt.Println("Listening on ", port)
 

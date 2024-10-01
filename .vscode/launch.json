@@ -10,7 +10,7 @@
       "request": "launch",
       "mode": "auto",
       "program": "${workspaceFolder}/cmd/main.go",
-      "args": ["--dir", "foo"]
+      "args": ["--dir", "../"]
     }
   ]
 }
