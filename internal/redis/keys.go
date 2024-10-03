@@ -21,5 +21,9 @@ func (r Redis) keys(ctx context.Context, args []string) serde.Value {
 		keysAsString = append(keysAsString, serde.NewSimpleString(k))
 	}
 
+	if len(keysAsString) == 0 {
+		return serde.NewNull()
+	}
+
 	return serde.NewArray(keysAsString)
 }
