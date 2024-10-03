@@ -62,21 +62,8 @@ func Test_parseSizeEncoded(t *testing.T) {
 			fileData: []byte{
 				0xC0, // String with 8 bit length to come
 				0x0D, // Length is 13 chars
-				0x48, // H
-				0x65, // e
-				0x6C, // l
-				0x6C, // l
-				0x6F, // o
-				0x2C, // ,
-				0x20, // " "
-				0x57, // W
-				0x6F, // o
-				0x72, // r
-				0x6C, // l
-				0x64, // d
-				0x21, // !
 			},
-			want:    stringSizeEncoded{13, "Hello, World!"},
+			want:    &stringSizeEncoded{13},
 			wantErr: false,
 		},
 		{
@@ -85,21 +72,8 @@ func Test_parseSizeEncoded(t *testing.T) {
 				0xC1, // String with 16 bit length to come
 				0x0D, // Length is 13 chars
 				0x00,
-				0x48, // H
-				0x65, // e
-				0x6C, // l
-				0x6C, // l
-				0x6F, // o
-				0x2C, // ,
-				0x20, // " "
-				0x57, // W
-				0x6F, // o
-				0x72, // r
-				0x6C, // l
-				0x64, // d
-				0x21, // !
 			},
-			want:    stringSizeEncoded{13, "Hello, World!"},
+			want:    &stringSizeEncoded{13},
 			wantErr: false,
 		},
 		{
@@ -110,21 +84,8 @@ func Test_parseSizeEncoded(t *testing.T) {
 				0x00,
 				0x00,
 				0x00,
-				0x48, // H
-				0x65, // e
-				0x6C, // l
-				0x6C, // l
-				0x6F, // o
-				0x2C, // ,
-				0x20, // " "
-				0x57, // W
-				0x6F, // o
-				0x72, // r
-				0x6C, // l
-				0x64, // d
-				0x21, // !
 			},
-			want:    stringSizeEncoded{13, "Hello, World!"},
+			want:    &stringSizeEncoded{13},
 			wantErr: false,
 		},
 	}

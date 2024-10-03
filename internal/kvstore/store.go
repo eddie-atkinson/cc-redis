@@ -59,6 +59,34 @@ func (s KVStore) findKey(key string) (*StoredValue, bool) {
 	return &storedValue, true
 }
 
+func (s KVStore) GetKeys(ctx context.Context) []string {
+	s.storeMutex.RLock()
+	defer s.storeMutex.RUnlock()
+
+	keys := []string{}
+
+	for k, v := range s.store {
+		_, exists := s.maybeDeleteExpiredEntry(ctx, k, &v)
+		if exists {
+			keys = append(keys, k)
+		}
+	}
+	return keys
+}
+
+func (s KVStore) maybeDeleteExpiredEntry(ctx context.Context, key string, stored *StoredValue) (*StoredValue, bool) {
+	contextClock := clock.FromContext(ctx)
+	now := time.NowMilli(contextClock)
+	hasExpired := stored.expiresAt != nil && *stored.expiresAt < now
+
+	if hasExpired {
+		s.deleteKey(key)
+		return nil, false
+	}
+
+	return stored, true
+}
+
 func (s KVStore) GetKey(ctx context.Context, key string) (*StoredValue, bool) {
 
 	value, found := s.findKey(key)
@@ -66,15 +94,7 @@ func (s KVStore) GetKey(ctx context.Context, key string) (*StoredValue, bool) {
 	if !found {
 		return nil, false
 	}
-
-	contextClock := clock.FromContext(ctx)
-	now := time.NowMilli(contextClock)
-
-	if value.expiresAt != nil && *value.expiresAt < now {
-		s.deleteKey(key)
-		return nil, false
-	}
-	return value, true
+	return s.maybeDeleteExpiredEntry(ctx, key, value)
 }
 
 func (s KVStore) deleteKey(key string) {

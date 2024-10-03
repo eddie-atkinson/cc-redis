@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"strconv"
@@ -56,8 +57,7 @@ type integerSizeEncoded struct {
 }
 
 type stringSizeEncoded struct {
-	size  int
-	value string
+	size int
 }
 
 func (i integerSizeEncoded) Size() int {
@@ -66,10 +66,6 @@ func (i integerSizeEncoded) Size() int {
 
 func (s stringSizeEncoded) Size() int {
 	return s.size
-}
-
-func (s stringSizeEncoded) Value() string {
-	return s.value
 }
 
 type persistedDB struct {
@@ -83,28 +79,7 @@ type keyValuePair struct {
 	expiryInMs *uint64
 }
 
-func readSizeEncodedString(reader *bufio.Reader, length int) (*stringSizeEncoded, error) {
-	buf, err := readNBytes(reader, length)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &stringSizeEncoded{size: length, value: string(buf)}, nil
-}
-
-func parseStringEncoded(reader *bufio.Reader) (*stringSizeEncoded, error) {
-	firstByte, err := reader.ReadByte()
-	if err != nil {
-		return nil, err
-	}
-	controlBits := firstByte >> 6
-
-	if controlBits != STRING_ENCODED {
-		return nil, errors.New("expected string encoded value to have string control bits set")
-	}
-
-	stringType := firstByte & 0b00111111
+func parseStringEncoded(reader *bufio.Reader, stringType int) (*stringSizeEncoded, error) {
 
 	switch stringType {
 	case ONE_BYTE_STRING_SIZE:
@@ -113,7 +88,7 @@ func parseStringEncoded(reader *bufio.Reader) (*stringSizeEncoded, error) {
 		if err != nil {
 			return nil, err
 		}
-		return readSizeEncodedString(reader, int(nextByte))
+		return &stringSizeEncoded{int(nextByte)}, nil
 
 	case TWO_BYTE_STRING_SIZE:
 		stringSize, err := readNBytes(reader, 2)
@@ -123,19 +98,20 @@ func parseStringEncoded(reader *bufio.Reader) (*stringSizeEncoded, error) {
 		}
 		length := int(binary.LittleEndian.Uint16(stringSize))
 
-		return readSizeEncodedString(reader, length)
+		return &stringSizeEncoded{int(length)}, nil
 	case FOUR_BYTE_STRING_SIZE:
 		stringSize, err := readNBytes(reader, 4)
 		if err != nil {
 			return nil, err
 		}
-		return readSizeEncodedString(reader, int(binary.LittleEndian.Uint32(stringSize)))
+		length := int(binary.LittleEndian.Uint32(stringSize))
+		return &stringSizeEncoded{int(length)}, nil
 	default:
-		return nil, errors.New("")
+		return nil, errors.New("failed to parse string encoded bytes")
 	}
 
 }
-func parseSizeEncodedInteger(reader *bufio.Reader) (integerSizeEncoded, error) {
+func parseSizeEncodedInteger(reader *bufio.Reader) (sizeEncoded, error) {
 
 	firstByte, err := reader.ReadByte()
 	defaultErr := integerSizeEncoded{-1}
@@ -168,6 +144,10 @@ func parseSizeEncodedInteger(reader *bufio.Reader) (integerSizeEncoded, error) {
 
 		value := binary.BigEndian.Uint32(nextFourBytes)
 		return integerSizeEncoded{int(value)}, nil
+
+	case STRING_ENCODED:
+		stringType := int(firstByte & 0b00111111)
+		return parseStringEncoded(reader, stringType)
 
 	default:
 		return defaultErr, errors.New("encountered unexpected byte sequence when parsing size encoded value")
@@ -227,17 +207,10 @@ func readUntilOneOf(reader *bufio.Reader, delimiters mapset.Set[byte]) ([]byte, 
 
 func readNBytes(reader *bufio.Reader, n int) ([]byte, error) {
 	buf := make([]byte, n)
-	read := 0
 
-	for read < n {
-		bytesRead, err := reader.Read(buf[read:])
-		if err != nil {
-			return buf[:read], fmt.Errorf("error reading from reader: %w", err)
-		}
-		read += bytesRead
-	}
+	_, err := io.ReadFull(reader, buf)
 
-	return buf, nil
+	return buf, err
 }
 
 // We should probably read / care about this section. But the metadata is not going to be used for our later
@@ -251,22 +224,31 @@ func parseDBKey(reader *bufio.Reader, valueType byte, expiresAt *uint64) (*keyVa
 	if valueType != STRING_VALUE {
 		return nil, errors.New("does not support values not encoded as strings")
 	}
-	theByte, _ := reader.ReadByte()
-	fmt.Printf("%v", theByte)
 
-	key, err := parseStringEncoded(reader)
+	keyLen, err := parseSizeEncodedInteger(reader)
 
 	if err != nil {
 		return nil, err
 	}
 
-	value, err := parseStringEncoded(reader)
+	key, err := readNBytes(reader, keyLen.Size())
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &keyValuePair{key: key.Value(), value: value.Value(), expiryInMs: expiresAt}, nil
+	valueLen, err := parseSizeEncodedInteger(reader)
+
+	if err != nil {
+		return nil, err
+	}
+	value, err := readNBytes(reader, valueLen.Size())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &keyValuePair{key: string(key), value: string(value), expiryInMs: expiresAt}, nil
 }
 
 func parseDBKeys(reader *bufio.Reader, count int) ([]keyValuePair, error) {
@@ -279,46 +261,47 @@ func parseDBKeys(reader *bufio.Reader, count int) ([]keyValuePair, error) {
 		}
 		switch firstByte {
 		case EXPIRY_SECONDS:
-			expireInSeconds, err := parseSizeEncodedInteger(reader)
+			expireInSeconds, err := readNBytes(reader, 4)
+
 			if err != nil {
 				return values, err
 			}
 
-			expiryInMs := uint64(expireInSeconds.Size() * 1000)
+			expiryInMs := uint64(binary.LittleEndian.Uint32(expireInSeconds)) * 1000
 
 			valueFlag, err := reader.ReadByte()
 
 			if err != nil {
-				return values, nil
+				return values, err
 			}
 
 			entry, err := parseDBKey(reader, valueFlag, &expiryInMs)
 
 			if err != nil {
-				return values, nil
+				return values, err
 			}
 
 			values = append(values, *entry)
 
 		case EXPIRE_TIME_MS:
-			expiryInMs, err := parseSizeEncodedInteger(reader)
+			expiryInMs, err := readNBytes(reader, 8)
 
 			if err != nil {
 				return values, err
 			}
 
+			expiry := binary.LittleEndian.Uint64(expiryInMs)
+
 			valueFlag, err := reader.ReadByte()
 
 			if err != nil {
-				return values, nil
+				return values, err
 			}
 
-			expiryTimeInMs := uint64(expiryInMs.Size())
-
-			entry, err := parseDBKey(reader, valueFlag, &expiryTimeInMs)
+			entry, err := parseDBKey(reader, valueFlag, &expiry)
 
 			if err != nil {
-				return values, nil
+				return values, err
 			}
 
 			values = append(values, *entry)
@@ -327,7 +310,7 @@ func parseDBKeys(reader *bufio.Reader, count int) ([]keyValuePair, error) {
 			entry, err := parseDBKey(reader, firstByte, nil)
 
 			if err != nil {
-				return values, nil
+				return values, err
 			}
 
 			values = append(values, *entry)
@@ -363,9 +346,8 @@ func parseDBEntry(reader *bufio.Reader) (*persistedDB, error) {
 	}
 
 	// I should care about the number of keys with expiries, but I really don't
-	keysWithExpiry, err := parseSizeEncodedInteger(reader)
+	_, err = parseSizeEncodedInteger(reader)
 
-	fmt.Printf("Keys with expiry, %v\n", keysWithExpiry)
 	if err != nil {
 		return nil, err
 	}
