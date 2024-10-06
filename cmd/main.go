@@ -9,7 +9,6 @@ import (
 )
 
 func main() {
-	port := ":6379"
 
 	redis := redis.NewRedisWithConfig()
 	err := redis.Init()
@@ -18,6 +17,8 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+
+	port := fmt.Sprintf(":%d", redis.Port())
 
 	fmt.Println("Listening on ", port)
 

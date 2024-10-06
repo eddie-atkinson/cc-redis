@@ -22,6 +22,10 @@ func NewRedisWithConfig() Redis {
 	return Redis{store, config}
 }
 
+func (r Redis) Port() int {
+	return r.configuration.port
+}
+
 func (r Redis) Init() error {
 	return r.processRDBFile()
 }
