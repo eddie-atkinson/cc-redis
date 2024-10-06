@@ -23,7 +23,7 @@ func NewRedisWithConfig() Redis {
 }
 
 func (r Redis) Init() error {
-	return r.processRDBFile(context.Background())
+	return r.processRDBFile()
 }
 
 func (r Redis) HandleConnection(c net.Conn) {

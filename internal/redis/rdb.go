@@ -3,7 +3,6 @@ package redis
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -48,6 +47,10 @@ const (
 	FOUR_BYTE_STRING_SIZE = 2
 )
 
+const (
+	EmptyDBError EmptyDB = "DB section is empty"
+)
+
 type sizeEncoded interface {
 	Size() int
 }
@@ -77,6 +80,12 @@ type keyValuePair struct {
 	key        string
 	value      string
 	expiryInMs *uint64
+}
+
+type EmptyDB string
+
+func (e EmptyDB) Error() string {
+	return string(e)
 }
 
 func parseStringEncoded(reader *bufio.Reader, stringType int) (*stringSizeEncoded, error) {
@@ -329,14 +338,25 @@ func parseDBEntry(reader *bufio.Reader) (*persistedDB, error) {
 		return nil, err
 	}
 
-	hashTableMagicByte, err := reader.ReadByte()
+	// Double check that this DB actually contains keys before going any further
+	hashTableMagicByte, err := reader.Peek(1)
 
 	if err != nil {
 		return nil, err
 	}
 
-	if hashTableMagicByte != HASH_TABLE_SIZE {
-		return nil, errors.New("expected hash table magic byte to follow table ID")
+	if len(hashTableMagicByte) != 1 {
+		return nil, errors.New("failed attempting to read magic hash table byte")
+	}
+
+	if hashTableMagicByte[0] != HASH_TABLE_SIZE {
+		return nil, EmptyDBError
+	}
+
+	_, err = reader.ReadByte()
+
+	if err != nil {
+		return nil, err
 	}
 
 	hashTableSize, err := parseSizeEncodedInteger(reader)
@@ -371,6 +391,11 @@ func parseDBSection(reader *bufio.Reader) (byte, []persistedDB, error) {
 
 	parsedDB, err := parseDBEntry(reader)
 
+	if errors.Is(err, EmptyDBError) {
+		nextSection, err := reader.ReadByte()
+		return nextSection, persisted, err
+	}
+
 	if err != nil {
 		return NULL_BYTE, persisted, err
 	}
@@ -389,7 +414,10 @@ func parseDBSection(reader *bufio.Reader) (byte, []persistedDB, error) {
 		if err != nil {
 			return NULL_BYTE, persisted, err
 		}
-		persisted = append(persisted, *parsedDB)
+
+		if persisted != nil {
+			persisted = append(persisted, *parsedDB)
+		}
 
 		nextSection, err := reader.ReadByte()
 
@@ -401,7 +429,7 @@ func parseDBSection(reader *bufio.Reader) (byte, []persistedDB, error) {
 	return nextSection, persisted, nil
 }
 
-func (r Redis) processRDBFile(ctx context.Context) error {
+func (r Redis) processRDBFile() error {
 	persistencePath := path.Join(r.configuration.persistenceDir, r.configuration.persistenceFileName)
 	file, err := os.Open(persistencePath)
 
@@ -437,7 +465,7 @@ func (r Redis) processRDBFile(ctx context.Context) error {
 		}
 		for _, db := range persistedDBs {
 			for _, kvPair := range db.values {
-				r.store.SetKeyWithExpiry(ctx, kvPair.key, kvPair.value, kvPair.expiryInMs)
+				r.store.SetKeyWithExpiresAt(kvPair.key, kvPair.value, kvPair.expiryInMs)
 			}
 		}
 
@@ -449,6 +477,7 @@ func (r Redis) processRDBFile(ctx context.Context) error {
 	if nextSection == EOF {
 		return nil
 	}
+
 	readByte, err := reader.ReadBytes(EOF)
 
 	if readByte[len(readByte)-1] == EOF {

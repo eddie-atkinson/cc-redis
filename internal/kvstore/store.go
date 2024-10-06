@@ -26,6 +26,12 @@ type KVStore struct {
 	storeMutex *sync.RWMutex
 }
 
+func (s KVStore) SetKeyWithExpiresAt(key string, value string, expiresAtMs *uint64) *StoredValue {
+	storedValue := NewStoredValue(value, expiresAtMs)
+	s.setKey(key, storedValue)
+	return &storedValue
+}
+
 func (s KVStore) SetKeyWithExpiry(ctx context.Context, key string, value string, expiresInMs *uint64) *StoredValue {
 	contextClock := clock.FromContext(ctx)
 	var expiresAt *uint64 = nil
