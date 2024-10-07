@@ -25,6 +25,9 @@ func NewRedisWithConfig() Redis {
 func (r Redis) Port() int {
 	return r.configuration.port
 }
+func (r Redis) Role() string {
+	return "master"
+}
 
 func (r Redis) Init() error {
 	return r.processRDBFile()
@@ -78,6 +81,8 @@ func (r Redis) executeCommand(ctx context.Context, value serde.Value) serde.Valu
 		return r.config(commandArray[1:])
 	case "keys":
 		return r.keys(ctx, commandArray[1:])
+	case "info":
+		return r.info(commandArray[1:])
 	default:
 		return serde.NewError(fmt.Sprintf("invalid command %s", command))
 
