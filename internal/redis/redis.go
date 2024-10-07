@@ -15,17 +15,23 @@ type Redis struct {
 	configuration configurationOptions
 }
 
-func NewRedisWithConfig() Redis {
-	config := ParseConfigurationFromFlags()
+func NewRedisWithConfig() (*Redis, error) {
+	config, err := ParseConfigurationFromFlags()
+	if err != nil {
+		return nil, err
+	}
 	store := kvstore.NewKVStore()
 
-	return Redis{store, config}
+	return &Redis{store, config}, nil
 }
 
 func (r Redis) Port() int {
 	return r.configuration.port
 }
 func (r Redis) Role() string {
+	if r.configuration.replicaConfig != nil {
+		return "slave"
+	}
 	return "master"
 }
 

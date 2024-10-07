@@ -10,8 +10,19 @@ import (
 
 func main() {
 
-	redis := redis.NewRedisWithConfig()
-	err := redis.Init()
+	redis, err := redis.NewRedisWithConfig()
+
+	if redis == nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	err = redis.Init()
 
 	if err != nil {
 		fmt.Println(err)
