@@ -5,12 +5,14 @@ import (
 	"codecrafters/internal/serde"
 	"context"
 	"fmt"
+	"net"
 	"strings"
 )
 
 type Redis struct {
 	store         kvstore.KVStore
 	configuration configurationOptions
+	listener      net.Listener
 }
 
 func NewRedisWithConfig() (Redis, error) {
@@ -24,6 +26,16 @@ func NewRedisWithConfig() (Redis, error) {
 	if err != nil {
 		return redis, err
 	}
+
+	port := fmt.Sprintf(":%d", config.port)
+	fmt.Println("Listening on ", port)
+	listener, err := net.Listen("tcp", port)
+
+	if err != nil {
+		return redis, err
+	}
+
+	redis.listener = listener
 
 	return redis, nil
 }

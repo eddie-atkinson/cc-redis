@@ -29,15 +29,8 @@ func (r Redis) handleConnection(c net.Conn) {
 }
 
 func initMaster(r Redis) error {
-	port := fmt.Sprintf(":%d", r.Port())
-	fmt.Println("Listening on ", port)
-	l, err := net.Listen("tcp", port)
-
-	if err != nil {
-		return err
-	}
 	for {
-		conn, err := l.Accept()
+		conn, err := r.listener.Accept()
 		if err != nil {
 			fmt.Println(err)
 			continue
