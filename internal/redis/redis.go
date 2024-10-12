@@ -5,8 +5,6 @@ import (
 	"codecrafters/internal/serde"
 	"context"
 	"fmt"
-	"io"
-	"net"
 	"strings"
 )
 
@@ -15,14 +13,19 @@ type Redis struct {
 	configuration configurationOptions
 }
 
-func NewRedisWithConfig() (*Redis, error) {
+func NewRedisWithConfig() (Redis, error) {
 	config, err := ParseConfigurationFromFlags()
-	if err != nil {
-		return nil, err
-	}
-	store := kvstore.NewKVStore()
 
-	return &Redis{store, config}, nil
+	redis := Redis{
+		store:         kvstore.NewKVStore(),
+		configuration: config,
+	}
+
+	if err != nil {
+		return redis, err
+	}
+
+	return redis, nil
 }
 
 func (r Redis) Port() int {
@@ -30,26 +33,15 @@ func (r Redis) Port() int {
 }
 
 func (r Redis) Init() error {
-	return r.processRDBFile()
-}
+	err := r.processRDBFile()
+	if err != nil {
+		return err
+	}
 
-func (r Redis) HandleConnection(c net.Conn) {
-	defer c.Close()
-	for {
-		resp := serde.NewResp(c)
-		writer := serde.NewWriter(c)
-		ctx := context.Background()
-
-		value, err := resp.Read()
-
-		if err != nil {
-			if err == io.EOF {
-				return
-			}
-			fmt.Println("Error reading from the client: ", err.Error())
-			return
-		}
-		writer.Write(r.executeCommand(ctx, value))
+	if r.configuration.replicationConfig.replicaConfig.Role() == MASTER {
+		return initMaster(r)
+	} else {
+		return initSlave(r)
 	}
 }
 

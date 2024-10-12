@@ -14,8 +14,8 @@ const DEFAULT_PERSISTENCE_DIR string = "./"
 const DEFAULT_PORT = 6379
 
 const (
-	SLAVE  = 0
-	MASTER = 1
+	SLAVE  = "slave"
+	MASTER = "master"
 )
 
 type replicaConfig interface {
@@ -28,13 +28,13 @@ type slaveConfig struct {
 }
 
 func (s slaveConfig) Role() string {
-	return "slave"
+	return SLAVE
 }
 
 type masterConfig struct{}
 
 func (m masterConfig) Role() string {
-	return "master"
+	return MASTER
 }
 
 type replicationConfig struct {

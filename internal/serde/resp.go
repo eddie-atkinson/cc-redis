@@ -21,20 +21,20 @@ type Value interface {
 	Marshal() []byte
 }
 
-type Resp struct {
+type Reader struct {
 	reader *bufio.Reader
 }
 
-func NewResp(rd io.Reader) *Resp {
-	return &Resp{reader: bufio.NewReader(rd)}
+func NewReader(rd io.Reader) Reader {
+	return Reader{reader: bufio.NewReader(rd)}
 }
 
 type Writer struct {
 	writer io.Writer
 }
 
-func NewWriter(w io.Writer) *Writer {
-	return &Writer{writer: w}
+func NewWriter(w io.Writer) Writer {
+	return Writer{writer: w}
 }
 
 func (w *Writer) Write(v Value) error {
@@ -48,7 +48,7 @@ func (w *Writer) Write(v Value) error {
 	return nil
 }
 
-func (r *Resp) readLine() (line []byte, n int, err error) {
+func (r *Reader) readLine() (line []byte, n int, err error) {
 	for {
 		b, err := r.reader.ReadByte()
 		if err != nil {
@@ -63,7 +63,7 @@ func (r *Resp) readLine() (line []byte, n int, err error) {
 	return line[:len(line)-2], n, nil
 }
 
-func (r *Resp) readInteger() (x int, n int, err error) {
+func (r *Reader) readInteger() (x int, n int, err error) {
 	line, n, err := r.readLine()
 	if err != nil {
 		return 0, 0, err
@@ -76,7 +76,7 @@ func (r *Resp) readInteger() (x int, n int, err error) {
 	return int(i64), n, nil
 }
 
-func (r *Resp) readArray() (Array, error) {
+func (r *Reader) readArray() (Array, error) {
 	value := Array{make([]Value, 0)}
 
 	len, _, err := r.readInteger()
@@ -95,7 +95,7 @@ func (r *Resp) readArray() (Array, error) {
 	return value, nil
 }
 
-func (r *Resp) readBulk() (Value, error) {
+func (r *Reader) readBulk() (Value, error) {
 
 	len, _, err := r.readInteger()
 
@@ -114,7 +114,7 @@ func (r *Resp) readBulk() (Value, error) {
 	return NewBulkString(string(bulk)), nil
 }
 
-func (r *Resp) readSimpleString() (Value, error) {
+func (r *Reader) readSimpleString() (Value, error) {
 	value, _, err := r.readLine()
 
 	if err != nil {
@@ -125,7 +125,7 @@ func (r *Resp) readSimpleString() (Value, error) {
 
 }
 
-func (r *Resp) Read() (Value, error) {
+func (r *Reader) Read() (Value, error) {
 	_type, err := r.reader.ReadByte()
 
 	if err != nil {

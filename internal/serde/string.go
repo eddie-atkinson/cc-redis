@@ -22,6 +22,10 @@ type BulkString struct {
 	value string
 }
 
+func (bs BulkString) Equal(other BulkString) bool {
+	return bs.Value() == other.Value()
+}
+
 func (bs BulkString) Marshal() []byte {
 	var bytes []byte
 	bytes = append(bytes, BULK)
