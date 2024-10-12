@@ -87,6 +87,8 @@ func (r Redis) executeCommand(ctx context.Context, value serde.Value) serde.Valu
 		return r.keys(ctx, commandArray[1:])
 	case "info":
 		return r.info(commandArray[1:])
+	case "psync":
+		return r.psync()
 	default:
 		return serde.NewError(fmt.Sprintf("invalid command %s", command))
 
