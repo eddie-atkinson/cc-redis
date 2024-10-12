@@ -4,6 +4,6 @@ import (
 	"codecrafters/internal/serde"
 )
 
-func (r Redis) psync() serde.Value {
+func (r Redis) replconf() serde.Value {
 	return serde.NewSimpleString("OK")
 }
