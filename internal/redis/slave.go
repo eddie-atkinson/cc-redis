@@ -40,12 +40,14 @@ func (rc RedisClient) Ping() error {
 }
 
 func (rc RedisClient) ReplConf(args []string) error {
+	command := append([]string{"REPLCONF"}, args...)
+
 	// TODO: Ask the tie dye man why this can't be serde.BulkString
-	command := array.Map(append([]string{"REPLCONF"}, args...), func(s string) serde.Value {
+	commandArr := array.Map(command, func(s string) serde.Value {
 		return serde.NewBulkString(s)
 	})
 
-	err := rc.writer.Write(serde.NewArray(command))
+	err := rc.writer.Write(serde.NewArray(commandArr))
 
 	if err != nil {
 		return err

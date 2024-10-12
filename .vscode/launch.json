@@ -10,7 +10,14 @@
       "request": "launch",
       "mode": "auto",
       "program": "${workspaceFolder}/cmd/main.go",
-      "args": ["--dir", "../"]
+      "args": [
+        "--dir",
+        "../",
+        "--port",
+        "8000",
+        "--replicaof",
+        "localhost 6379"
+      ]
     }
   ]
 }

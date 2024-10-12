@@ -38,7 +38,7 @@ func NewWriter(w io.Writer) Writer {
 }
 
 func (w *Writer) Write(v Value) error {
-	var bytes = v.Marshal()
+	bytes := v.Marshal()
 	_, err := w.writer.Write(bytes)
 
 	if err != nil {
