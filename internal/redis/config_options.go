@@ -5,6 +5,8 @@ import (
 	"flag"
 	"strconv"
 	"strings"
+
+	"github.com/dchest/uniuri"
 )
 
 const DEFAULT_PERSISTENCE_FILE_NAME string = "dump.rdb"
@@ -16,37 +18,78 @@ const (
 	MASTER = 1
 )
 
-type replicaConfig struct {
+type replicaConfig interface {
+	Role() string
+}
+
+type slaveConfig struct {
 	host string
 	port int
 }
 
-func parseReplicaString(replicaString string) (*replicaConfig, error) {
+func (s slaveConfig) Role() string {
+	return "slave"
+}
+
+type masterConfig struct{}
+
+func (m masterConfig) Role() string {
+	return "master"
+}
+
+type replicationConfig struct {
+	replicaConfig    replicaConfig
+	masterReplId     string
+	masterReplOffset int
+}
+
+func parseReplicaString(replicaString string) (replicaConfig, error) {
+	defaultErr := masterConfig{}
+
 	if len(replicaString) == 0 {
-		return nil, nil
+		return masterConfig{}, nil
 	}
+
 	split := strings.Split(replicaString, " ")
 	if len(split) != 2 {
-		return nil, errors.New("expected replica string to be of form: '<host> <port>'")
+		return defaultErr, errors.New("expected replica string to be of form: '<host> <port>'")
 	}
 
 	host := split[0]
 	port, err := strconv.Atoi(split[1])
 
 	if err != nil {
-		return nil, err
+		return defaultErr, err
 	}
-	return &replicaConfig{
+	return slaveConfig{
 		host,
 		port,
 	}, nil
+}
+
+func newReplicationConfig(replicaOf string) (replicationConfig, error) {
+
+	config := replicationConfig{
+		masterReplId:     uniuri.NewLen(40),
+		masterReplOffset: 0,
+	}
+
+	replicaConfig, err := parseReplicaString(replicaOf)
+
+	if err != nil {
+		return config, err
+	}
+
+	config.replicaConfig = replicaConfig
+
+	return config, nil
 }
 
 type configurationOptions struct {
 	persistenceFileName string
 	persistenceDir      string
 	port                int
-	replicaConfig       *replicaConfig
+	replicationConfig   replicationConfig
 }
 
 func ParseConfigurationFromFlags() (configurationOptions, error) {
@@ -60,13 +103,12 @@ func ParseConfigurationFromFlags() (configurationOptions, error) {
 	flag.StringVar(&replicaOf, "replicaof", "", "Host and port to replicate from")
 	flag.Parse()
 
-	replicaConfig, err := parseReplicaString(replicaOf)
-
-	opts.replicaConfig = replicaConfig
+	replicationConfig, err := newReplicationConfig(replicaOf)
 
 	if err != nil {
 		return opts, err
 	}
 
+	opts.replicationConfig = replicationConfig
 	return opts, nil
 }

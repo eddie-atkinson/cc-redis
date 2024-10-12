@@ -28,12 +28,6 @@ func NewRedisWithConfig() (*Redis, error) {
 func (r Redis) Port() int {
 	return r.configuration.port
 }
-func (r Redis) Role() string {
-	if r.configuration.replicaConfig != nil {
-		return "slave"
-	}
-	return "master"
-}
 
 func (r Redis) Init() error {
 	return r.processRDBFile()
