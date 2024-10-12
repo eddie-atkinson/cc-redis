@@ -135,5 +135,18 @@ func initSlave(r Redis) error {
 
 	err = redisClient.Psync("?", "-1")
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	// TODO(eatkinson): We're not a master node this is weird, but should get the tests to pass
+	for {
+		conn, err := r.listener.Accept()
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		go r.handleConnection(conn)
+	}
+
 }
