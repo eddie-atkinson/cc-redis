@@ -2,6 +2,7 @@ package redis
 
 import (
 	"codecrafters/internal/serde"
+	"fmt"
 )
 
 func (r Redis) replconf(args []string) []serde.Value {
@@ -19,7 +20,7 @@ func (r Redis) replconf(args []string) []serde.Value {
 			return []serde.Value{serde.NewArray([]serde.Value{
 				serde.NewBulkString("REPLCONF"),
 				serde.NewBulkString("ACK"),
-				serde.NewBulkString("0"),
+				serde.NewBulkString(fmt.Sprintf("%d", r.processedByteCount)),
 			})}
 		}
 	default:

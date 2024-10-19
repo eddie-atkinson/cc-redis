@@ -23,10 +23,11 @@ const (
 )
 
 type Redis struct {
-	store         kvstore.KVStore
-	configuration configurationOptions
-	listener      net.Listener
-	replicas      []serde.Writer
+	store              kvstore.KVStore
+	configuration      configurationOptions
+	listener           net.Listener
+	replicas           []serde.Writer
+	processedByteCount int
 }
 
 func NewRedisWithConfig() (Redis, error) {
