@@ -129,13 +129,15 @@ func (r Redis) executeCommand(ctx context.Context, value serde.Value, writer ser
 
 	}
 
-	if isWriteCommand(commandArray[0]) {
+	cmd := strings.ToLower(commandArray[0])
+
+	if isWriteCommand(cmd) {
 		for _, v := range r.replicas {
 			v.Write(value)
 		}
 	}
 
-	switch strings.ToLower(commandArray[0]) {
+	switch cmd {
 	case PING:
 		return PING, r.ping()
 	case ECHO:
