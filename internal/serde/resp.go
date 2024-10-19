@@ -172,7 +172,7 @@ func (r *Reader) ReadRDB() error {
 
 	rdbContent := make([]byte, bytesToReadCount)
 
-	_, err = r.reader.Read(rdbContent)
+	_, err = io.ReadFull(r.reader, rdbContent)
 
 	return err
 }

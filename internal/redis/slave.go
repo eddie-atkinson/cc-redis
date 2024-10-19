@@ -176,7 +176,6 @@ func initSlave(r *Redis) error {
 	if err != nil {
 		return err
 	}
-
 	go handleSlaveReplicationConnection(r, conn)
 
 	// TODO(eatkinson): We're not a master node this is weird, but should get the tests to pass

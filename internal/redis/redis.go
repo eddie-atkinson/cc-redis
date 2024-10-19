@@ -135,6 +135,8 @@ func (r *Redis) executeCommand(ctx context.Context, value serde.Value, writer se
 		}
 	}
 
+	fmt.Printf("Received command %v\n", commandArray)
+
 	switch cmd {
 	case PING:
 		return PING, r.ping()

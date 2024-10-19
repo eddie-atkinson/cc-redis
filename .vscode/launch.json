@@ -10,14 +10,7 @@
       "request": "launch",
       "mode": "auto",
       "program": "${workspaceFolder}/cmd/main.go",
-      "args": [
-        "--dir",
-        "../",
-        "--port",
-        "8000",
-        "--replicaof",
-        "localhost 6379"
-      ]
+      "args": ["--port", "8000", "--replicaof", "localhost 6379"]
     },
     {
       "name": "Launch Package",
