@@ -86,7 +86,7 @@ func NewRedisClient(conn *net.TCPConn) RedisClient {
 		writer,
 	}
 }
-func initSlave(r Redis) error {
+func initSlave(r *Redis) error {
 	hostConfig, ok := r.configuration.replicationConfig.replicaConfig.(slaveConfig)
 
 	if !ok {

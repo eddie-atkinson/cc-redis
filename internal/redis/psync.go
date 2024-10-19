@@ -15,7 +15,7 @@ var EMPTY_RDB = []byte{
 	0x00, 0xff, 0xf0, 0x6e, 0x3b, 0xfe, 0xc0, 0xff, 0x5a, 0xa2,
 }
 
-func (r Redis) psync(writer serde.Writer) []serde.Value {
+func (r *Redis) psync(writer serde.Writer) []serde.Value {
 	length := fmt.Sprintf("$%d%s", len(EMPTY_RDB), serde.CRLF)
 
 	response := []serde.Value{

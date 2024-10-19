@@ -5,7 +5,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch Package",
+      "name": "Launch Replica",
       "type": "go",
       "request": "launch",
       "mode": "auto",
@@ -18,6 +18,14 @@
         "--replicaof",
         "localhost 6379"
       ]
+    },
+    {
+      "name": "Launch Package",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/main.go",
+      "args": []
     }
   ]
 }

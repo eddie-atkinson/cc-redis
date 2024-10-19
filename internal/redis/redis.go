@@ -58,7 +58,7 @@ func (r Redis) Port() int {
 	return r.configuration.port
 }
 
-func (r Redis) Init() error {
+func (r *Redis) Init() error {
 	err := r.processRDBFile()
 	if err != nil {
 		return err
@@ -84,7 +84,7 @@ func (r Redis) isMasterNode() bool {
 	return r.configuration.replicationConfig.replicaConfig.Role() == MASTER
 }
 
-func (r Redis) handleConnection(c net.Conn) {
+func (r *Redis) handleConnection(c net.Conn) {
 	defer c.Close()
 	for {
 		reader := serde.NewReader(c)
@@ -111,14 +111,14 @@ func (r Redis) handleConnection(c net.Conn) {
 	}
 }
 
-func (r Redis) executeCommand(ctx context.Context, value serde.Value, writer serde.Writer) (string, []serde.Value) {
-	command, ok := value.(serde.Array)
+func (r *Redis) executeCommand(ctx context.Context, value serde.Value, writer serde.Writer) (string, []serde.Value) {
+	commands, ok := value.(serde.Array)
 
 	if !ok {
 		return "", []serde.Value{serde.NewError("Expected commands to be array")}
 
 	}
-	commandArray, err := command.ToCommandArray()
+	commandArray, err := commands.ToCommandArray()
 
 	if err != nil {
 		return "", []serde.Value{serde.NewError(err.Error())}
@@ -157,7 +157,7 @@ func (r Redis) executeCommand(ctx context.Context, value serde.Value, writer ser
 	case PSYNC:
 		return PSYNC, r.psync(writer)
 	default:
-		return "", []serde.Value{serde.NewError(fmt.Sprintf("invalid command %s", command))}
+		return "", []serde.Value{serde.NewError(fmt.Sprintf("invalid command %s", commands))}
 	}
 
 }

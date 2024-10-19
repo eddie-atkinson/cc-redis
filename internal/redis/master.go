@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-func initMaster(r Redis) error {
+func initMaster(r *Redis) error {
 	for {
 		conn, err := r.listener.Accept()
 		if err != nil {
