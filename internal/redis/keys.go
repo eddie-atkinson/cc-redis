@@ -5,13 +5,13 @@ import (
 	"context"
 )
 
-func (r Redis) keys(ctx context.Context, args []string) serde.Value {
+func (r Redis) keys(ctx context.Context, args []string) []serde.Value {
 	if len(args) != 1 {
-		return serde.NewError("KEYS requires one arg")
+		return []serde.Value{serde.NewError("KEYS requires one arg")}
 	}
 
 	if args[0] != "*" {
-		return serde.NewError(("command KEYS currently only supports the * arg"))
+		return []serde.Value{serde.NewError(("command KEYS currently only supports the * arg"))}
 	}
 	keys := r.store.GetKeys(ctx)
 
@@ -21,5 +21,7 @@ func (r Redis) keys(ctx context.Context, args []string) serde.Value {
 		keysAsString = append(keysAsString, serde.NewSimpleString(k))
 	}
 
-	return serde.NewArray(keysAsString)
+	return []serde.Value{
+		serde.NewArray(keysAsString),
+	}
 }

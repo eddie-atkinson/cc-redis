@@ -39,9 +39,9 @@ func parseSetArgs(args []string) (setArgs, error) {
 	return parsedArgs, nil
 }
 
-func (r Redis) set(ctx context.Context, args []string) serde.Value {
+func (r Redis) set(ctx context.Context, args []string) []serde.Value {
 	if len(args) < 2 {
-		return serde.NewError("SET expects at least two arguments")
+		return []serde.Value{serde.NewError("SET expects at least two arguments")}
 	}
 
 	key := args[0]
@@ -50,10 +50,10 @@ func (r Redis) set(ctx context.Context, args []string) serde.Value {
 	parsedArgs, err := parseSetArgs(args[2:])
 
 	if err != nil {
-		return serde.NewError(err.Error())
+		return []serde.Value{serde.NewError(err.Error())}
 	}
 
 	r.store.SetKeyWithExpiry(ctx, key, value, parsedArgs.expireInMs)
 
-	return serde.NewSimpleString("OK")
+	return []serde.Value{serde.NewSimpleString("OK")}
 }

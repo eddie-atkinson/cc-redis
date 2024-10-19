@@ -5,14 +5,28 @@ import (
 	"codecrafters/internal/serde"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"strings"
+)
+
+const (
+	PING     = "ping"
+	SET      = "set"
+	INFO     = "info"
+	ECHO     = "echo"
+	GET      = "get"
+	CONFIG   = "config"
+	KEYS     = "keys"
+	REPLCONF = "replconf"
+	PSYNC    = "psync"
 )
 
 type Redis struct {
 	store         kvstore.KVStore
 	configuration configurationOptions
 	listener      net.Listener
+	replicas      []serde.Writer
 }
 
 func NewRedisWithConfig() (Redis, error) {
@@ -57,43 +71,91 @@ func (r Redis) Init() error {
 	}
 }
 
-func (r Redis) executeCommand(ctx context.Context, value serde.Value) serde.Value {
+func isWriteCommand(cmd string) bool {
+	switch cmd {
+	case SET:
+		return true
+	default:
+		return false
+	}
+}
+
+func (r Redis) isMasterNode() bool {
+	return r.configuration.replicationConfig.replicaConfig.Role() == MASTER
+}
+
+func (r Redis) handleConnection(c net.Conn) {
+	defer c.Close()
+	for {
+		reader := serde.NewReader(c)
+		writer := serde.NewWriter(c)
+		ctx := context.Background()
+
+		value, err := reader.Read()
+
+		if err != nil {
+			if err == io.EOF {
+				return
+			}
+			fmt.Println("Error reading from the client: ", err.Error())
+			return
+		}
+
+		_, response := r.executeCommand(ctx, value, writer)
+
+		if r.isMasterNode() {
+			for _, v := range response {
+				writer.Write(v)
+			}
+		}
+	}
+}
+
+func (r Redis) executeCommand(ctx context.Context, value serde.Value, writer serde.Writer) (string, []serde.Value) {
 	command, ok := value.(serde.Array)
+
 	if !ok {
-		return serde.NewError("Expected commands to be array")
+		return "", []serde.Value{serde.NewError("Expected commands to be array")}
+
 	}
 	commandArray, err := command.ToCommandArray()
 
 	if err != nil {
-		return serde.NewError(err.Error())
+		return "", []serde.Value{serde.NewError(err.Error())}
 	}
 
 	if len(commandArray) == 0 {
-		return serde.NewError("empty commands array")
+		return "", []serde.Value{serde.NewError("empty commands array")}
+
+	}
+
+	if isWriteCommand(commandArray[0]) {
+		for _, v := range r.replicas {
+			v.Write(value)
+		}
 	}
 
 	switch strings.ToLower(commandArray[0]) {
-	case "ping":
-		return r.ping()
-	case "echo":
-		return r.echo(commandArray[1:])
-	case "set":
-		return r.set(ctx, commandArray[1:])
-	case "get":
-		return r.get(ctx, commandArray[1:])
-	case "config":
-		return r.config(commandArray[1:])
-	case "keys":
-		return r.keys(ctx, commandArray[1:])
-	case "info":
-		return r.info(commandArray[1:])
-	case "replconf":
-		return r.replconf()
-	case "psync":
-		return r.psync()
+	case PING:
+		return PING, r.ping()
+	case ECHO:
+		return ECHO, r.echo(commandArray[1:])
+	case SET:
+		return SET, r.set(ctx, commandArray[1:])
+	case GET:
+		return GET, r.get(ctx, commandArray[1:])
+	case CONFIG:
+		return CONFIG, r.config(commandArray[1:])
+	case KEYS:
+		return KEYS, r.keys(ctx, commandArray[1:])
+	case INFO:
+		return INFO, r.info(commandArray[1:])
+	case REPLCONF:
+		return REPLCONF, r.replconf()
+	case PSYNC:
+		return PSYNC, r.psync(writer)
 	default:
-		return serde.NewError(fmt.Sprintf("invalid command %s", command))
-
+		return "", []serde.Value{serde.NewError(fmt.Sprintf("invalid command %s", command))}
 	}
 
 }

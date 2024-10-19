@@ -5,12 +5,10 @@ import (
 	"fmt"
 )
 
-func (r Redis) echo(arguments []string) serde.Value {
+func (r Redis) echo(arguments []string) []serde.Value {
 	if len(arguments) != 1 {
-		return serde.NewError(fmt.Sprintf("ECHO expects %d argument, received: %d", 1, len(arguments)))
+		return []serde.Value{serde.NewError(fmt.Sprintf("ECHO expects %d argument, received: %d", 1, len(arguments)))}
 	}
 
-	echoValue := arguments[0]
-
-	return serde.NewBulkString(echoValue)
+	return []serde.Value{serde.NewBulkString(arguments[0])}
 }

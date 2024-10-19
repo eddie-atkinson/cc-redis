@@ -21,7 +21,7 @@ func getReplicationInfo(r Redis) []string {
 	return replicationInfo
 }
 
-func (r Redis) info(_ []string) serde.Value {
+func (r Redis) info(_ []string) []serde.Value {
 	replicationInfo := getReplicationInfo(r)
-	return serde.NewBulkString(fmt.Sprintf("%s\r\n", strings.Join(replicationInfo, "\r\n")))
+	return []serde.Value{serde.NewBulkString(fmt.Sprintf("%s\r\n", strings.Join(replicationInfo, "\r\n")))}
 }

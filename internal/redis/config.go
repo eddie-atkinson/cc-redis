@@ -20,15 +20,15 @@ func getConfigProperty(arg string, r Redis) serde.Value {
 	return serde.NewArray(response[:])
 }
 
-func (r Redis) config(args []string) serde.Value {
+func (r Redis) config(args []string) []serde.Value {
 	if len(args) < 2 {
-		return serde.NewError("CONFIG requires at least two arguments")
+		return []serde.Value{serde.NewError("CONFIG requires at least two arguments")}
 	}
 
 	switch v := strings.ToLower(args[0]); v {
 	case "get":
-		return getConfigProperty(args[1], r)
+		return []serde.Value{getConfigProperty(args[1], r)}
 	default:
-		return serde.NewError(fmt.Sprintf("Do not recognise config command %s", args[1]))
+		return []serde.Value{serde.NewError(fmt.Sprintf("Do not recognise config command %s", args[1]))}
 	}
 }
