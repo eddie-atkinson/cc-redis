@@ -111,7 +111,7 @@ func (r *Redis) handleConnection(c net.Conn) {
 
 		if r.isMasterNode() {
 			writeResponse(writer, response)
-		} else if cmd == INFO {
+		} else if !isWriteCommand(cmd) {
 			writeResponse(writer, response)
 		}
 	}
