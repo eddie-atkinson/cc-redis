@@ -3,8 +3,10 @@ package redis
 import (
 	"codecrafters/internal/array"
 	"codecrafters/internal/serde"
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 )
@@ -64,7 +66,7 @@ func (rc RedisClient) ReplConf(args []string) error {
 		return fmt.Errorf("expected ping to respond with 'OK' got %v", response)
 	}
 
-	return nil
+	return err
 }
 
 func (rc RedisClient) Psync(replicationId string, offset string) error {
@@ -74,7 +76,23 @@ func (rc RedisClient) Psync(replicationId string, offset string) error {
 
 	err := rc.writer.Write(serde.NewArray(command))
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	response, err := rc.reader.Read()
+
+	if err != nil {
+		return err
+	}
+
+	simpleString, ok := response.(serde.SimpleString)
+
+	if !ok || !strings.HasPrefix(simpleString.Value(), "FULLRESYNC") {
+		return fmt.Errorf("expected to receive full sync on child, got %s instead", simpleString.Value())
+	}
+
+	return rc.reader.ReadRDB()
 }
 
 func NewRedisClient(conn *net.TCPConn) RedisClient {
@@ -86,6 +104,28 @@ func NewRedisClient(conn *net.TCPConn) RedisClient {
 		writer,
 	}
 }
+
+func handleSlaveReplicationConnection(r *Redis, c net.Conn) {
+	defer c.Close()
+	for {
+		reader := serde.NewReader(c)
+		writer := serde.NewWriter(c)
+		ctx := context.Background()
+
+		value, err := reader.Read()
+
+		if err != nil {
+			if err == io.EOF {
+				return
+			}
+			fmt.Println("Error reading from the client: ", err.Error())
+			return
+		}
+
+		r.executeCommand(ctx, value, writer)
+	}
+}
+
 func initSlave(r *Redis) error {
 	hostConfig, ok := r.configuration.replicationConfig.replicaConfig.(slaveConfig)
 
@@ -104,8 +144,6 @@ func initSlave(r *Redis) error {
 	if err != nil {
 		return err
 	}
-
-	defer conn.Close()
 
 	redisClient := NewRedisClient(conn)
 
@@ -138,6 +176,8 @@ func initSlave(r *Redis) error {
 	if err != nil {
 		return err
 	}
+
+	go handleSlaveReplicationConnection(r, conn)
 
 	// TODO(eatkinson): We're not a master node this is weird, but should get the tests to pass
 	for {

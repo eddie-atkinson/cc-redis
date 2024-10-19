@@ -2,6 +2,7 @@ package serde
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -48,6 +49,9 @@ func (w *Writer) Write(v Value) error {
 	return nil
 }
 
+/*
+Read a single line of \r\n delimited data. Result does not include \r\n delimiter
+*/
 func (r *Reader) readLine() (line []byte, n int, err error) {
 	for {
 		b, err := r.reader.ReadByte()
@@ -60,7 +64,8 @@ func (r *Reader) readLine() (line []byte, n int, err error) {
 			break
 		}
 	}
-	return line[:len(line)-2], n, nil
+	// Strip out the \r\n suffix and exclude it from the read byte count
+	return line[:len(line)-2], n - 2, nil
 }
 
 func (r *Reader) readInteger() (x int, n int, err error) {
@@ -143,4 +148,31 @@ func (r *Reader) Read() (Value, error) {
 		fmt.Printf("Unknown type: %v", string(_type))
 		return Array{}, nil
 	}
+}
+
+// TODO: Should probably actually return a value here that we can parse etc
+func (r *Reader) ReadRDB() error {
+	length, n, err := r.readLine()
+	if err != nil {
+		return err
+	}
+	if n < 2 || length[0] != BULK {
+		return errors.New("expect RBD payload to be prefixed by $<length>\\r\\n")
+	}
+
+	bytesToReadCount, err := strconv.Atoi(string((length[1:])))
+
+	if err != nil {
+		return err
+	}
+
+	if bytesToReadCount < 0 {
+		return errors.New("expect RBD to have positive byte count for transfer")
+	}
+
+	rdbContent := make([]byte, bytesToReadCount)
+
+	_, err = r.reader.Read(rdbContent)
+
+	return err
 }
