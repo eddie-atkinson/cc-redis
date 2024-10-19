@@ -11,7 +11,7 @@ func (r Redis) replconf(args []string) []serde.Value {
 	}
 
 	switch args[0] {
-	case "ACK":
+	case "GETACK":
 		{
 			if args[1] != "*" {
 				return []serde.Value{serde.NewError("expected REPLCONF ACK *")}
