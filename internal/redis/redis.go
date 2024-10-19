@@ -84,6 +84,12 @@ func (r Redis) isMasterNode() bool {
 	return r.configuration.replicationConfig.replicaConfig.Role() == MASTER
 }
 
+func writeResponse(writer serde.Writer, response []serde.Value) {
+	for _, v := range response {
+		writer.Write(v)
+	}
+}
+
 func (r *Redis) handleConnection(c net.Conn) {
 	defer c.Close()
 	for {
@@ -101,12 +107,15 @@ func (r *Redis) handleConnection(c net.Conn) {
 			return
 		}
 
-		_, response := r.executeCommand(ctx, value, writer)
+		cmd, response := r.executeCommand(ctx, value, writer)
 
 		if r.isMasterNode() {
-			for _, v := range response {
-				writer.Write(v)
-			}
+			writeResponse(writer, response)
+			return
+		}
+
+		if cmd == INFO {
+			writeResponse(writer, response)
 		}
 	}
 }
