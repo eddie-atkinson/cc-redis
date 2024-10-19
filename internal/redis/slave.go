@@ -105,10 +105,9 @@ func NewRedisClient(conn *net.TCPConn) RedisClient {
 	}
 }
 
-func handleSlaveReplicationConnection(r *Redis, c net.Conn) {
+func handleSlaveReplicationConnection(r *Redis, c net.Conn, reader *serde.Reader) {
 	defer c.Close()
 	for {
-		reader := serde.NewReader(c)
 		writer := serde.NewWriter(c)
 		ctx := context.Background()
 
@@ -176,7 +175,7 @@ func initSlave(r *Redis) error {
 	if err != nil {
 		return err
 	}
-	go handleSlaveReplicationConnection(r, conn)
+	go handleSlaveReplicationConnection(r, conn, &redisClient.reader)
 
 	// TODO(eatkinson): We're not a master node this is weird, but should get the tests to pass
 	for {
