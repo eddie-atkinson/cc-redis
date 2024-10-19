@@ -153,7 +153,7 @@ func (r *Redis) executeCommand(ctx context.Context, value serde.Value, writer se
 	case INFO:
 		return INFO, r.info(commandArray[1:])
 	case REPLCONF:
-		return REPLCONF, r.replconf()
+		return REPLCONF, r.replconf(commandArray[1:])
 	case PSYNC:
 		return PSYNC, r.psync(writer)
 	default:

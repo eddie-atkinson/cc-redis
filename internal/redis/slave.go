@@ -121,7 +121,13 @@ func handleSlaveReplicationConnection(r *Redis, c net.Conn, reader *serde.Reader
 			return
 		}
 
-		r.executeCommand(ctx, value, writer)
+		cmd, response := r.executeCommand(ctx, value, writer)
+
+		if cmd == REPLCONF {
+			for _, v := range response {
+				writer.Write(v)
+			}
+		}
 	}
 }
 
