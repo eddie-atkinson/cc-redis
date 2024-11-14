@@ -27,7 +27,7 @@ type Redis struct {
 	store              kvstore.KVStore
 	configuration      configurationOptions
 	listener           net.Listener
-	replicas           []serde.Writer
+	replicas           []Replica
 	processedByteCount int
 }
 
@@ -105,13 +105,13 @@ func (r *Redis) handleConnection(c net.Conn) {
 			return
 		}
 
-		_, response := r.executeCommand(ctx, value, writer)
+		_, response := r.executeCommand(ctx, value, writer, &reader)
 
 		writeResponse(writer, response)
 	}
 }
 
-func (r *Redis) executeCommand(ctx context.Context, value serde.Value, writer serde.Writer) (string, []serde.Value) {
+func (r *Redis) executeCommand(ctx context.Context, value serde.Value, writer serde.Writer, reader *serde.Reader) (string, []serde.Value) {
 	commands, ok := value.(serde.Array)
 
 	if !ok {
@@ -131,13 +131,13 @@ func (r *Redis) executeCommand(ctx context.Context, value serde.Value, writer se
 
 	cmd := strings.ToLower(commandArray[0])
 
+	r.processedByteCount += len(value.Marshal())
+
 	if isWriteCommand(cmd) {
 		for _, v := range r.replicas {
-			v.Write(value)
+			v.writer.Write(value)
 		}
 	}
-
-	fmt.Printf("Received command %v\n", commandArray)
 
 	switch cmd {
 	case PING:
@@ -157,7 +157,7 @@ func (r *Redis) executeCommand(ctx context.Context, value serde.Value, writer se
 	case REPLCONF:
 		return REPLCONF, r.replconf(commandArray[1:])
 	case PSYNC:
-		return PSYNC, r.psync(writer)
+		return PSYNC, r.psync(writer, reader)
 	case WAIT:
 		return WAIT, r.wait(commandArray[1:])
 	default:
