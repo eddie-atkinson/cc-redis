@@ -1,14 +1,12 @@
 package redis
 
 import (
-	"codecrafters/internal/array"
 	"codecrafters/internal/serde"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net"
-	"strings"
 )
 
 const (
@@ -18,81 +16,6 @@ const (
 type RedisClient struct {
 	reader serde.Reader
 	writer serde.Writer
-}
-
-func (rc RedisClient) Ping() error {
-	err := rc.writer.Write(serde.NewArray([]serde.Value{serde.NewBulkString("PING")}))
-	if err != nil {
-		return err
-	}
-
-	response, err := rc.reader.Read()
-
-	if err != nil {
-		return err
-	}
-
-	simpleString, ok := response.(serde.SimpleString)
-
-	if !ok || strings.ToLower(simpleString.Value()) != "pong" {
-		return fmt.Errorf("expected ping to respond with 'PONG' got %v", response)
-	}
-
-	return nil
-}
-
-func (rc RedisClient) ReplConf(args []string) error {
-	command := append([]string{"REPLCONF"}, args...)
-
-	// TODO: Ask the tie dye man why this can't be serde.BulkString
-	commandArr := array.Map(command, func(s string) serde.Value {
-		return serde.NewBulkString(s)
-	})
-
-	err := rc.writer.Write(serde.NewArray(commandArr))
-
-	if err != nil {
-		return err
-	}
-	response, err := rc.reader.Read()
-
-	if err != nil {
-		return err
-	}
-
-	simpleString, ok := response.(serde.SimpleString)
-
-	if !ok || strings.ToLower(simpleString.Value()) != "ok" {
-		return fmt.Errorf("expected ping to respond with 'OK' got %v", response)
-	}
-
-	return err
-}
-
-func (rc RedisClient) Psync(replicationId string, offset string) error {
-	command := array.Map([]string{"PSYNC", replicationId, offset}, func(s string) serde.Value {
-		return serde.NewBulkString(s)
-	})
-
-	err := rc.writer.Write(serde.NewArray(command))
-
-	if err != nil {
-		return err
-	}
-
-	response, err := rc.reader.Read()
-
-	if err != nil {
-		return err
-	}
-
-	simpleString, ok := response.(serde.SimpleString)
-
-	if !ok || !strings.HasPrefix(simpleString.Value(), "FULLRESYNC") {
-		return fmt.Errorf("expected to receive full sync on child, got %s instead", simpleString.Value())
-	}
-
-	return rc.reader.ReadRDB()
 }
 
 func NewRedisClient(conn *net.TCPConn) RedisClient {
@@ -105,13 +28,13 @@ func NewRedisClient(conn *net.TCPConn) RedisClient {
 	}
 }
 
-func handleSlaveReplicationConnection(r *Redis, c net.Conn, reader *serde.Reader) {
-	defer c.Close()
+func handleSlaveReplicationConnection(r *Redis, connection RedisConnection) {
+	defer connection.Close()
 	for {
-		writer := serde.NewWriter(c)
+
 		ctx := context.Background()
 
-		value, err := reader.Read()
+		value, err := connection.reader.Read()
 
 		if err != nil {
 			if err == io.EOF {
@@ -121,15 +44,11 @@ func handleSlaveReplicationConnection(r *Redis, c net.Conn, reader *serde.Reader
 			return
 		}
 
-		cmd, response := r.executeCommand(ctx, value, writer, reader)
+		cmd, response := r.executeCommand(ctx, value, connection)
+		r.processedByteCount += len(value.Marshal())
 
 		if cmd == REPLCONF {
-			for _, v := range response {
-				writer.Write(v)
-			}
-		} else {
-			// Processed an actual command we should track it
-			r.processedByteCount += len(value.Marshal())
+			connection.Send(response)
 		}
 	}
 }
@@ -153,15 +72,15 @@ func initSlave(r *Redis) error {
 		return err
 	}
 
-	redisClient := NewRedisClient(conn)
+	connection := NewRedisConnection(conn)
 
-	err = redisClient.Ping()
+	err = connection.Ping()
 
 	if err != nil {
 		return err
 	}
 
-	err = redisClient.ReplConf([]string{
+	err = connection.ReplConf([]string{
 		"listening-port",
 		fmt.Sprintf("%d", r.configuration.port),
 	})
@@ -170,7 +89,7 @@ func initSlave(r *Redis) error {
 		return err
 	}
 
-	err = redisClient.ReplConf([]string{
+	err = connection.ReplConf([]string{
 		"capa",
 		"psync2",
 	})
@@ -179,12 +98,12 @@ func initSlave(r *Redis) error {
 		return err
 	}
 
-	err = redisClient.Psync("?", "-1")
+	err = connection.Psync("?", "-1")
 
 	if err != nil {
 		return err
 	}
-	go handleSlaveReplicationConnection(r, conn, &redisClient.reader)
+	go handleSlaveReplicationConnection(r, connection)
 
 	// TODO(eatkinson): We're not a master node this is weird, but should get the tests to pass
 	for {

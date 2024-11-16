@@ -27,7 +27,7 @@ func (r *Redis) psync(writer serde.Writer, reader *serde.Reader) []serde.Value {
 	r.replicas = append(r.replicas, Replica{
 		writer:              writer,
 		reader:              reader,
-		processedBytesCount: len(EMPTY_RDB),
+		processedBytesCount: 0,
 	})
 	return response
 }

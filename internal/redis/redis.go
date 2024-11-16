@@ -82,20 +82,13 @@ func isWriteCommand(cmd string) bool {
 	}
 }
 
-func writeResponse(writer serde.Writer, response []serde.Value) {
-	for _, v := range response {
-		writer.Write(v)
-	}
-}
-
 func (r *Redis) handleConnection(c net.Conn) {
-	defer c.Close()
+	connection := NewRedisConnection(c)
+	defer connection.Close()
 	for {
-		reader := serde.NewReader(c)
-		writer := serde.NewWriter(c)
 		ctx := context.Background()
 
-		value, err := reader.Read()
+		value, err := connection.reader.Read()
 
 		if err != nil {
 			if err == io.EOF {
@@ -105,13 +98,15 @@ func (r *Redis) handleConnection(c net.Conn) {
 			return
 		}
 
-		_, response := r.executeCommand(ctx, value, writer, &reader)
+		_, response := r.executeCommand(ctx, value, connection)
 
-		writeResponse(writer, response)
+		r.processedByteCount += len(value.Marshal())
+
+		connection.Send(response)
 	}
 }
 
-func (r *Redis) executeCommand(ctx context.Context, value serde.Value, writer serde.Writer, reader *serde.Reader) (string, []serde.Value) {
+func (r *Redis) executeCommand(ctx context.Context, value serde.Value, connection RedisConnection) (string, []serde.Value) {
 	commands, ok := value.(serde.Array)
 
 	if !ok {
@@ -130,8 +125,6 @@ func (r *Redis) executeCommand(ctx context.Context, value serde.Value, writer se
 	}
 
 	cmd := strings.ToLower(commandArray[0])
-
-	r.processedByteCount += len(value.Marshal())
 
 	if isWriteCommand(cmd) {
 		for _, v := range r.replicas {
@@ -157,11 +150,10 @@ func (r *Redis) executeCommand(ctx context.Context, value serde.Value, writer se
 	case REPLCONF:
 		return REPLCONF, r.replconf(commandArray[1:])
 	case PSYNC:
-		return PSYNC, r.psync(writer, reader)
+		return PSYNC, r.psync(connection.writer, connection.reader)
 	case WAIT:
 		return WAIT, r.wait(commandArray[1:])
 	default:
 		return "", []serde.Value{serde.NewError(fmt.Sprintf("invalid command %s", commands))}
 	}
-
 }
