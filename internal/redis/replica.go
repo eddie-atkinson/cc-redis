@@ -1,10 +1,7 @@
 package redis
 
-import "codecrafters/internal/serde"
-
 type Replica struct {
-	writer              serde.Writer
-	reader              *serde.Reader
+	connection          RedisConnection
 	processedBytesCount int
 }
 

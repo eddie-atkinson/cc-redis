@@ -127,8 +127,9 @@ func (r *Redis) executeCommand(ctx context.Context, value serde.Value, connectio
 	cmd := strings.ToLower(commandArray[0])
 
 	if isWriteCommand(cmd) {
-		for _, v := range r.replicas {
-			v.writer.Write(value)
+
+		for _, replica := range r.replicas {
+			replica.connection.Send([]serde.Value{value})
 		}
 	}
 
@@ -150,7 +151,7 @@ func (r *Redis) executeCommand(ctx context.Context, value serde.Value, connectio
 	case REPLCONF:
 		return REPLCONF, r.replconf(commandArray[1:])
 	case PSYNC:
-		return PSYNC, r.psync(connection.writer, connection.reader)
+		return PSYNC, r.psync(connection)
 	case WAIT:
 		return WAIT, r.wait(commandArray[1:])
 	default:
