@@ -16,13 +16,14 @@ type RedisConnection struct {
 	connMutex *sync.RWMutex
 }
 
-func (rc RedisConnection) Ping() error {
-	err := rc.writer.Write(serde.NewArray([]serde.Value{serde.NewBulkString("PING")}))
+func (r RedisConnection) Ping() error {
+	err := r.Send([]serde.Value{serde.NewArray([]serde.Value{serde.NewBulkString("PING")})})
+
 	if err != nil {
 		return err
 	}
 
-	response, err := rc.reader.Read()
+	response, err := r.Read()
 
 	if err != nil {
 		return err
@@ -37,7 +38,7 @@ func (rc RedisConnection) Ping() error {
 	return nil
 }
 
-func (rc RedisConnection) ReplConf(args []string) error {
+func (r RedisConnection) ReplConf(args []string) error {
 	command := append([]string{"REPLCONF"}, args...)
 
 	// TODO: Ask the tie dye man why this can't be serde.BulkString
@@ -45,12 +46,12 @@ func (rc RedisConnection) ReplConf(args []string) error {
 		return serde.NewBulkString(s)
 	})
 
-	err := rc.writer.Write(serde.NewArray(commandArr))
+	err := r.Send([]serde.Value{serde.NewArray(commandArr)})
 
 	if err != nil {
 		return err
 	}
-	response, err := rc.reader.Read()
+	response, err := r.Read()
 
 	if err != nil {
 		return err
@@ -65,18 +66,18 @@ func (rc RedisConnection) ReplConf(args []string) error {
 	return err
 }
 
-func (rc RedisConnection) Psync(replicationId string, offset string) error {
+func (r RedisConnection) Psync(replicationId string, offset string) error {
 	command := array.Map([]string{"PSYNC", replicationId, offset}, func(s string) serde.Value {
 		return serde.NewBulkString(s)
 	})
 
-	err := rc.writer.Write(serde.NewArray(command))
+	err := r.Send([]serde.Value{serde.NewArray(command)})
 
 	if err != nil {
 		return err
 	}
 
-	response, err := rc.reader.Read()
+	response, err := r.Read()
 
 	if err != nil {
 		return err
@@ -88,16 +89,67 @@ func (rc RedisConnection) Psync(replicationId string, offset string) error {
 		return fmt.Errorf("expected to receive full sync on child, got %s instead", simpleString.Value())
 	}
 
-	return rc.reader.ReadRDB()
+	return r.ReadRDB()
 }
 
-func (r RedisConnection) Send(value []serde.Value) {
+func (r RedisConnection) ReplConfGetAck(connectionId string, ackChan chan<- ReplicaAck) error {
+
+	command := []string{"REPLCONF", "GETACK", "*"}
+
+	// TODO: Ask the tie dye man why this can't be serde.BulkString
+	commandArr := array.Map(command, func(s string) serde.Value {
+		return serde.NewBulkString(s)
+	})
+	err := r.Send([]serde.Value{serde.NewArray(commandArr)})
+
+	if err != nil {
+		return err
+	}
+
+	response, err := r.Read()
+
+	if err != nil {
+		return err
+	}
+
+	array, ok := response.(serde.Array)
+
+	if !ok || len(array.Items) != 3 {
+		return fmt.Errorf("expected array of length 3 in response to replconf get ack %v", response)
+	}
+	return nil
+
+	// offsetItem, ok := array.Items[2].(serde.BulkString)
+
+	// if !ok {
+	// 	return fmt.Errorf("expected replconf get ack to respond with offset, instead received %v", array.Items[2])
+	// }
+
+	// offset, err := strconv.Atoi(offsetItem.Value())
+
+	// if err != nil {
+	// 	return err
+	// }
+
+	// ackChan <- ReplicaAck{connectionId: connectionId, processedByteCount: offset}
+
+	// return nil
+}
+
+func (r RedisConnection) Send(value []serde.Value) error {
 	r.connMutex.Lock()
 	defer r.connMutex.Unlock()
 
+	var err error
+
 	for _, v := range value {
-		r.writer.Write(v)
+		err := r.writer.Write(v)
+		if err != nil {
+			return err
+		}
 	}
+
+	return err
 }
 
 func (r RedisConnection) Read() (serde.Value, error) {
@@ -105,6 +157,13 @@ func (r RedisConnection) Read() (serde.Value, error) {
 	defer r.connMutex.Unlock()
 
 	return r.reader.Read()
+}
+
+func (r RedisConnection) ReadRDB() error {
+	r.connMutex.Lock()
+	defer r.connMutex.Unlock()
+
+	return r.reader.ReadRDB()
 }
 
 func (r RedisConnection) Close() {

@@ -2,6 +2,9 @@ package redis
 
 import (
 	"codecrafters/internal/serde"
+	"fmt"
+	"strconv"
+	"time"
 )
 
 const INFINITE_WAIT_TIME = 0
@@ -11,21 +14,60 @@ func (r *Redis) wait(args []string) []serde.Value {
 		return []serde.Value{serde.NewError("WAIT requires two arguments: <numreplicas> <timeout>")}
 	}
 
-	// replicCount, err := strconv.Atoi(args[0])
+	replicasNeeded, err := strconv.Atoi(args[0])
 
-	// if err != nil {
-	// 	return []serde.Value{serde.NewError("Number of replicas for WAIT must be an integer")}
-	// }
+	if err != nil {
+		return []serde.Value{serde.NewError("Number of replicas for WAIT must be an integer")}
+	}
 
-	// waitTime, err := strconv.Atoi(args[1])
+	timeoutMs, err := strconv.Atoi(args[1])
 
-	// if err != nil {
-	// 	return []serde.Value{serde.NewError("Number of milliseconds for WAIT must be an integer")}
-	// }
+	if err != nil {
+		return []serde.Value{serde.NewError("Number of milliseconds for WAIT must be an integer")}
+	}
 
-	// highWaterMark := r.processedByteCount
+	bytesNeeded := r.processedByteCount
 
-	// TODO: Need to setup context or similar with timeout here to sit and wait until all replicas have phoned home
+	fmt.Printf("In master want %v", r.processedByteCount)
 
-	return []serde.Value{serde.NewInteger(0)}
+	ackChan := make(chan ReplicaAck)
+	defer close(ackChan)
+
+	caughtUp := 0
+	startTime := time.Now()
+
+	for id, replica := range r.replicas {
+		go func(replica Replica) {
+			err := replica.connection.ReplConfGetAck(id, ackChan)
+			if err != nil {
+				fmt.Println("Error getting replication ack from replica:", err)
+			}
+		}(replica)
+	}
+
+	for caughtUp < replicasNeeded && time.Since(startTime) < time.Duration(timeoutMs)*time.Millisecond {
+		select {
+		case ack, ok := <-ackChan:
+			fmt.Printf("received ack %v, ok %v", ack, ok)
+			if !ok {
+				return []serde.Value{serde.NewError("error receiving replica acknowledgment")}
+			}
+			replica, ok := r.replicas[ack.connectionId]
+
+			if !ok {
+				continue
+			}
+
+			replica.processedByteCount = ack.processedByteCount
+
+			if replica.processedByteCount > bytesNeeded {
+				caughtUp++
+			}
+
+		case <-time.After(time.Duration(timeoutMs) * time.Millisecond):
+			return []serde.Value{serde.NewInteger(int64(caughtUp))}
+		}
+	}
+
+	return []serde.Value{serde.NewInteger(int64(caughtUp))}
 }

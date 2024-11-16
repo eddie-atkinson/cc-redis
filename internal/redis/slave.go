@@ -34,7 +34,7 @@ func handleSlaveReplicationConnection(r *Redis, connection RedisConnection) {
 
 		ctx := context.Background()
 
-		value, err := connection.reader.Read()
+		value, err := connection.Read()
 
 		if err != nil {
 			if err == io.EOF {
@@ -45,9 +45,11 @@ func handleSlaveReplicationConnection(r *Redis, connection RedisConnection) {
 		}
 
 		cmd, response := r.executeCommand(ctx, value, connection)
+
 		r.processedByteCount += len(value.Marshal())
 
 		if cmd == REPLCONF {
+			fmt.Printf("slave responding with %v", response)
 			connection.Send(response)
 		}
 	}

@@ -24,9 +24,8 @@ func (r *Redis) psync(connection RedisConnection) []serde.Value {
 		serde.NewRawBytes(EMPTY_RDB),
 	}
 
-	r.replicas = append(r.replicas, Replica{
-		connection:          connection,
-		processedBytesCount: 0,
-	})
+	replica := NewReplica(connection)
+	r.replicas[replica.id] = replica
+
 	return response
 }

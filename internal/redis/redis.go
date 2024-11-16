@@ -27,7 +27,7 @@ type Redis struct {
 	store              kvstore.KVStore
 	configuration      configurationOptions
 	listener           net.Listener
-	replicas           []Replica
+	replicas           map[string]Replica
 	processedByteCount int
 }
 
@@ -37,6 +37,7 @@ func NewRedisWithConfig() (Redis, error) {
 	redis := Redis{
 		store:         kvstore.NewKVStore(),
 		configuration: config,
+		replicas:      map[string]Replica{},
 	}
 
 	if err != nil {
@@ -99,9 +100,7 @@ func (r *Redis) handleConnection(c net.Conn) {
 		}
 
 		_, response := r.executeCommand(ctx, value, connection)
-
 		r.processedByteCount += len(value.Marshal())
-
 		connection.Send(response)
 	}
 }
@@ -127,7 +126,6 @@ func (r *Redis) executeCommand(ctx context.Context, value serde.Value, connectio
 	cmd := strings.ToLower(commandArray[0])
 
 	if isWriteCommand(cmd) {
-
 		for _, replica := range r.replicas {
 			replica.connection.Send([]serde.Value{value})
 		}
