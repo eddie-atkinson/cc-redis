@@ -122,12 +122,14 @@ func handleSlaveReplicationConnection(r *Redis, c net.Conn, reader *serde.Reader
 		}
 
 		cmd, response := r.executeCommand(ctx, value, writer, reader)
-		r.processedByteCount += len(value.Marshal())
 
 		if cmd == REPLCONF {
 			for _, v := range response {
 				writer.Write(v)
 			}
+		} else {
+			// Processed an actual command we should track it
+			r.processedByteCount += len(value.Marshal())
 		}
 	}
 }
