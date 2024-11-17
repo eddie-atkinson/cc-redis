@@ -106,8 +106,8 @@ func (r *Redis) handleConnection(c net.Conn) {
 					replica.WithWriteMutex(func() error {
 						return replica.Send([]serde.Value{value})
 					})
-					r.processedByteCount += len(value.Marshal())
 				}
+				r.processedByteCount += len(value.Marshal())
 			}
 
 			err = connection.WithWriteMutex(func() error { return connection.Send(response) })

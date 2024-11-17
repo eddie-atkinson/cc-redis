@@ -32,7 +32,7 @@ func (r Redis) replconf(args []string, connection RedisConnection) []serde.Value
 			if err != nil {
 				return []serde.Value{serde.NewError("REPLCONF ACK takes a number for offset")}
 			}
-			slog.Debug(fmt.Sprintf("Master received ACK back from slave %v with %v as processedBytes", connection.id, processedBytes))
+			slog.Info(fmt.Sprintf("Master received ACK back from slave %v with %v as processedBytes. Master currently at %v bytes", connection.id, processedBytes, r.processedByteCount))
 			// TODO: probably needs a lock?
 			connection.processedByteCount = processedBytes
 			r.ackChan <- ReplicaAck{connectionId: connection.id, processedByteCount: processedBytes}
