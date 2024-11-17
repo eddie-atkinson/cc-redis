@@ -17,11 +17,11 @@ func (r *Redis) typeCmd(ctx context.Context, args []string) []serde.Value {
 
 	key := args[0]
 
-	_, found := r.store.GetKey(ctx, key)
+	stored, found := r.store.GetKey(ctx, key)
 
 	if !found {
 		return []serde.Value{serde.NewSimpleString(NONE)}
 	}
 
-	return []serde.Value{serde.NewSimpleString(STRING)}
+	return []serde.Value{serde.NewSimpleString(stored.Type())}
 }

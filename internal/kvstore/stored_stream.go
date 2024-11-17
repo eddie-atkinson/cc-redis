@@ -22,5 +22,6 @@ func (ss StoredStream) Value() serde.Value {
 }
 
 func (ss StoredStream) IsExpired(ctx context.Context) bool {
+	// TODO (eatkinson): Maybe implement this?
 	return false
 }
