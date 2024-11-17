@@ -21,5 +21,5 @@ func (r Redis) get(ctx context.Context, args []string) []serde.Value {
 
 	}
 
-	return []serde.Value{serde.NewBulkString(storedValue.Value())}
+	return []serde.Value{storedValue.Value()}
 }

@@ -10,15 +10,14 @@ import (
 
 func TestKVStore_SetKeyWithExpiry(t *testing.T) {
 	eternalKey := "FOO"
-	eternalValue := "BAR"
 	var eternalExpiry *uint64 = nil
-
-	limitedKey := "LIMITED"
-	limitedValue := "TIME"
+	eternalValue := NewStoredString("BAR", eternalExpiry)
 
 	var limitedExpiry *uint64 = new(uint64)
 	// Give us a second
 	*limitedExpiry = 1000
+	limitedKey := "LIMITED"
+	limitedValue := NewStoredString("TIME", limitedExpiry)
 
 	store := NewKVStore()
 
@@ -35,13 +34,13 @@ func TestKVStore_SetKeyWithExpiry(t *testing.T) {
 
 	retrievedEternal, exists := store.GetKey(ctx, eternalKey)
 
-	if !exists || retrievedEternal == nil || retrievedEternal.Value() != eternalValue {
+	if !exists || retrievedEternal == nil || retrievedEternal.Value() != eternalValue.Value() {
 		t.Fatalf("Expected eternal key value to be present in output, got %v", retrievedEternal)
 	}
 
 	retrievedLimited, exists := store.GetKey(ctx, limitedKey)
 
-	if !exists || retrievedLimited == nil || retrievedLimited.Value() != limitedValue {
+	if !exists || retrievedLimited == nil || retrievedLimited.Value() != limitedValue.Value() {
 		t.Fatalf("Expected limited key value to be present in output, got %v", retrievedLimited)
 	}
 
@@ -50,7 +49,7 @@ func TestKVStore_SetKeyWithExpiry(t *testing.T) {
 
 	retrievedEternal, exists = store.GetKey(ctx, eternalKey)
 
-	if !exists || retrievedEternal == nil || retrievedEternal.Value() != eternalValue {
+	if !exists || retrievedEternal == nil || retrievedEternal.Value() != eternalValue.Value() {
 		t.Fatalf("Expected eternal key value to be present in output, got %v", retrievedEternal)
 	}
 

@@ -1,6 +1,7 @@
 package kvstore
 
 import (
+	"codecrafters/internal/serde"
 	"codecrafters/internal/time"
 	"context"
 	"sync"
@@ -8,17 +9,10 @@ import (
 	"github.com/tilinna/clock"
 )
 
-type StoredValue struct {
-	value     string
-	expiresAt *uint64
-}
-
-func (storedValue StoredValue) Value() string {
-	return storedValue.value
-}
-
-func NewStoredValue(value string, expiresAt *uint64) StoredValue {
-	return StoredValue{value: value, expiresAt: expiresAt}
+type StoredValue interface {
+	Value() serde.Value
+	Type() string
+	IsExpired(context.Context) bool
 }
 
 type KVStore struct {
@@ -26,13 +20,13 @@ type KVStore struct {
 	storeMutex *sync.RWMutex
 }
 
-func (s KVStore) SetKeyWithExpiresAt(key string, value string, expiresAtMs *uint64) *StoredValue {
-	storedValue := NewStoredValue(value, expiresAtMs)
+func (s KVStore) SetKeyWithExpiresAt(key string, value string, expiresAtMs *uint64) StoredValue {
+	storedValue := NewStoredString(value, expiresAtMs)
 	s.setKey(key, storedValue)
-	return &storedValue
+	return storedValue
 }
 
-func (s KVStore) SetKeyWithExpiry(ctx context.Context, key string, value string, expiresInMs *uint64) *StoredValue {
+func (s KVStore) SetKeyWithExpiry(ctx context.Context, key string, value string, expiresInMs *uint64) StoredString {
 	contextClock := clock.FromContext(ctx)
 	var expiresAt *uint64 = nil
 
@@ -41,9 +35,16 @@ func (s KVStore) SetKeyWithExpiry(ctx context.Context, key string, value string,
 		*expiresAt = time.NowMilli(contextClock) + *expiresInMs
 	}
 
-	storedValue := NewStoredValue(value, expiresAt)
+	storedValue := NewStoredString(value, expiresAt)
+
 	s.setKey(key, storedValue)
-	return &storedValue
+	return storedValue
+}
+
+func (s KVStore) SetStream(key string, value map[string]map[string]string) StoredStream {
+	storedValue := NewStoredStream(value)
+	s.setKey(key, storedValue)
+	return storedValue
 }
 
 func (s KVStore) setKey(key string, value StoredValue) *StoredValue {
@@ -53,7 +54,7 @@ func (s KVStore) setKey(key string, value StoredValue) *StoredValue {
 	return &value
 }
 
-func (s KVStore) findKey(key string) (*StoredValue, bool) {
+func (s KVStore) findKey(key string) (StoredValue, bool) {
 	s.storeMutex.RLock()
 	defer s.storeMutex.RUnlock()
 	storedValue, ok := s.store[key]
@@ -62,7 +63,7 @@ func (s KVStore) findKey(key string) (*StoredValue, bool) {
 		return nil, false
 	}
 
-	return &storedValue, true
+	return storedValue, true
 }
 
 func (s KVStore) GetKeys(ctx context.Context) []string {
@@ -72,7 +73,7 @@ func (s KVStore) GetKeys(ctx context.Context) []string {
 	keys := []string{}
 
 	for k, v := range s.store {
-		_, exists := s.maybeDeleteExpiredEntry(ctx, k, &v)
+		_, exists := s.maybeDeleteExpiredEntry(ctx, k, v)
 		if exists {
 			keys = append(keys, k)
 		}
@@ -80,12 +81,9 @@ func (s KVStore) GetKeys(ctx context.Context) []string {
 	return keys
 }
 
-func (s KVStore) maybeDeleteExpiredEntry(ctx context.Context, key string, stored *StoredValue) (*StoredValue, bool) {
-	contextClock := clock.FromContext(ctx)
-	now := time.NowMilli(contextClock)
-	hasExpired := stored.expiresAt != nil && *stored.expiresAt < now
+func (s KVStore) maybeDeleteExpiredEntry(ctx context.Context, key string, stored StoredValue) (StoredValue, bool) {
 
-	if hasExpired {
+	if stored.IsExpired(ctx) {
 		s.deleteKey(key)
 		return nil, false
 	}
@@ -93,7 +91,7 @@ func (s KVStore) maybeDeleteExpiredEntry(ctx context.Context, key string, stored
 	return stored, true
 }
 
-func (s KVStore) GetKey(ctx context.Context, key string) (*StoredValue, bool) {
+func (s KVStore) GetKey(ctx context.Context, key string) (StoredValue, bool) {
 
 	value, found := s.findKey(key)
 
