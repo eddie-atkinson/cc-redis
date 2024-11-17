@@ -24,8 +24,7 @@ func (r *Redis) psync(connection RedisConnection) []serde.Value {
 		serde.NewRawBytes(EMPTY_RDB),
 	}
 
-	replica := NewReplica(connection)
-	r.replicas[replica.id] = replica
+	r.replicas[connection.id] = connection
 
 	return response
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"strings"
 )
@@ -27,8 +28,9 @@ type Redis struct {
 	store              kvstore.KVStore
 	configuration      configurationOptions
 	listener           net.Listener
-	replicas           map[string]Replica
+	replicas           map[string]RedisConnection
 	processedByteCount int
+	ackChan            chan ReplicaAck
 }
 
 func NewRedisWithConfig() (Redis, error) {
@@ -37,7 +39,8 @@ func NewRedisWithConfig() (Redis, error) {
 	redis := Redis{
 		store:         kvstore.NewKVStore(),
 		configuration: config,
-		replicas:      map[string]Replica{},
+		replicas:      map[string]RedisConnection{},
+		ackChan:       make(chan ReplicaAck),
 	}
 
 	if err != nil {
@@ -89,19 +92,38 @@ func (r *Redis) handleConnection(c net.Conn) {
 	for {
 		ctx := context.Background()
 
-		value, err := connection.reader.Read()
+		err := connection.WithReadMutex(func() error {
+			value, err := connection.Read()
+
+			if err != nil {
+				slog.Error(fmt.Sprintf("Failed read with error %v", err))
+				return err
+			}
+
+			cmd, response := r.executeCommand(ctx, value, connection)
+
+			if isWriteCommand(cmd) {
+				for _, replica := range r.replicas {
+					replica.WithWriteMutex(func() error {
+						return replica.Send([]serde.Value{value})
+					})
+					r.processedByteCount += len(value.Marshal())
+				}
+			}
+
+			err = connection.WithWriteMutex(func() error { return connection.Send(response) })
+			return err
+		})
 
 		if err != nil {
 			if err == io.EOF {
 				return
+			} else {
+				fmt.Println("Error reading from the client: ", err.Error())
+				return
 			}
-			fmt.Println("Error reading from the client: ", err.Error())
-			return
 		}
 
-		_, response := r.executeCommand(ctx, value, connection)
-		r.processedByteCount += len(value.Marshal())
-		connection.Send(response)
 	}
 }
 
@@ -125,12 +147,6 @@ func (r *Redis) executeCommand(ctx context.Context, value serde.Value, connectio
 
 	cmd := strings.ToLower(commandArray[0])
 
-	if isWriteCommand(cmd) {
-		for _, replica := range r.replicas {
-			replica.connection.Send([]serde.Value{value})
-		}
-	}
-
 	switch cmd {
 	case PING:
 		return PING, r.ping()
@@ -147,7 +163,7 @@ func (r *Redis) executeCommand(ctx context.Context, value serde.Value, connectio
 	case INFO:
 		return INFO, r.info(commandArray[1:])
 	case REPLCONF:
-		return REPLCONF, r.replconf(commandArray[1:])
+		return REPLCONF, r.replconf(commandArray[1:], connection)
 	case PSYNC:
 		return PSYNC, r.psync(connection)
 	case WAIT:

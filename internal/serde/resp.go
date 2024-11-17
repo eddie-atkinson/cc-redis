@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"strconv"
 )
 
@@ -130,6 +131,10 @@ func (r *Reader) readSimpleString() (Value, error) {
 
 }
 
+func (r *Reader) CanRead() bool {
+	return r.reader.Buffered() > 0
+}
+
 func (r *Reader) Read() (Value, error) {
 	_type, err := r.reader.ReadByte()
 
@@ -139,11 +144,17 @@ func (r *Reader) Read() (Value, error) {
 
 	switch _type {
 	case ARRAY:
-		return r.readArray()
+		v, err := r.readArray()
+		slog.Debug(fmt.Sprintf("Read array %v\n", v))
+		return v, err
 	case BULK:
-		return r.readBulk()
+		v, err := r.readBulk()
+		slog.Debug(fmt.Sprintf("Read bulkstring %v\n", v))
+		return v, err
 	case STRING:
-		return r.readSimpleString()
+		v, err := r.readSimpleString()
+		slog.Debug(fmt.Sprintf("Read simplestring %v\n", v))
+		return v, err
 	default:
 		fmt.Printf("Unknown type: %v", string(_type))
 		return Array{}, nil

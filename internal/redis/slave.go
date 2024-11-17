@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 )
 
@@ -31,10 +32,23 @@ func NewRedisClient(conn *net.TCPConn) RedisClient {
 func handleSlaveReplicationConnection(r *Redis, connection RedisConnection) {
 	defer connection.Close()
 	for {
-
 		ctx := context.Background()
+		err := connection.WithReadMutex(func() error {
+			value, err := connection.Read()
 
-		value, err := connection.Read()
+			if err != nil {
+				return err
+			}
+			slog.Debug(fmt.Sprintf("Received cmd %v in slave", value))
+			cmd, response := r.executeCommand(ctx, value, connection)
+
+			r.processedByteCount += len(value.Marshal())
+
+			if cmd == REPLCONF {
+				connection.Send(response)
+			}
+			return err
+		})
 
 		if err != nil {
 			if err == io.EOF {
@@ -42,15 +56,6 @@ func handleSlaveReplicationConnection(r *Redis, connection RedisConnection) {
 			}
 			fmt.Println("Error reading from the client: ", err.Error())
 			return
-		}
-
-		cmd, response := r.executeCommand(ctx, value, connection)
-
-		r.processedByteCount += len(value.Marshal())
-
-		if cmd == REPLCONF {
-			fmt.Printf("slave responding with %v", response)
-			connection.Send(response)
 		}
 	}
 }
@@ -76,35 +81,40 @@ func initSlave(r *Redis) error {
 
 	connection := NewRedisConnection(conn)
 
-	err = connection.Ping()
+	err = connection.WithReadMutex(func() error {
+		err = connection.Ping()
 
-	if err != nil {
+		if err != nil {
+			return err
+		}
+
+		err = connection.ReplConf([]string{
+			"listening-port",
+			fmt.Sprintf("%d", r.configuration.port),
+		})
+
+		if err != nil {
+			return err
+		}
+
+		err = connection.ReplConf([]string{
+			"capa",
+			"psync2",
+		})
+
+		if err != nil {
+			return err
+		}
+
+		err = connection.Psync("?", "-1")
+
 		return err
-	}
-
-	err = connection.ReplConf([]string{
-		"listening-port",
-		fmt.Sprintf("%d", r.configuration.port),
 	})
 
 	if err != nil {
 		return err
 	}
 
-	err = connection.ReplConf([]string{
-		"capa",
-		"psync2",
-	})
-
-	if err != nil {
-		return err
-	}
-
-	err = connection.Psync("?", "-1")
-
-	if err != nil {
-		return err
-	}
 	go handleSlaveReplicationConnection(r, connection)
 
 	// TODO(eatkinson): We're not a master node this is weird, but should get the tests to pass

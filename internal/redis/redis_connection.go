@@ -4,16 +4,22 @@ import (
 	"codecrafters/internal/array"
 	"codecrafters/internal/serde"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 	"sync"
+
+	"github.com/dchest/uniuri"
 )
 
 type RedisConnection struct {
-	reader    *serde.Reader
-	writer    serde.Writer
-	conn      net.Conn
-	connMutex *sync.RWMutex
+	reader             *serde.Reader
+	writer             serde.Writer
+	conn               net.Conn
+	readMutex          *sync.Mutex
+	writeMutex         *sync.Mutex
+	id                 string
+	processedByteCount int
 }
 
 func (r RedisConnection) Ping() error {
@@ -92,53 +98,24 @@ func (r RedisConnection) Psync(replicationId string, offset string) error {
 	return r.ReadRDB()
 }
 
-func (r RedisConnection) ReplConfGetAck(connectionId string, ackChan chan<- ReplicaAck) error {
+func (r RedisConnection) ReplConfGetAck() error {
+	return r.WithWriteMutex(func() error {
+		command := []string{"REPLCONF", "GETACK", "*"}
 
-	command := []string{"REPLCONF", "GETACK", "*"}
+		commandArr := array.Map(command, func(s string) serde.Value {
+			return serde.NewBulkString(s)
+		})
+		err := r.Send([]serde.Value{serde.NewArray(commandArr)})
 
-	// TODO: Ask the tie dye man why this can't be serde.BulkString
-	commandArr := array.Map(command, func(s string) serde.Value {
-		return serde.NewBulkString(s)
+		if err != nil {
+			return err
+		}
+
+		return err
 	})
-	err := r.Send([]serde.Value{serde.NewArray(commandArr)})
-
-	if err != nil {
-		return err
-	}
-
-	response, err := r.Read()
-
-	if err != nil {
-		return err
-	}
-
-	array, ok := response.(serde.Array)
-
-	if !ok || len(array.Items) != 3 {
-		return fmt.Errorf("expected array of length 3 in response to replconf get ack %v", response)
-	}
-	return nil
-
-	// offsetItem, ok := array.Items[2].(serde.BulkString)
-
-	// if !ok {
-	// 	return fmt.Errorf("expected replconf get ack to respond with offset, instead received %v", array.Items[2])
-	// }
-
-	// offset, err := strconv.Atoi(offsetItem.Value())
-
-	// if err != nil {
-	// 	return err
-	// }
-
-	// ackChan <- ReplicaAck{connectionId: connectionId, processedByteCount: offset}
-
-	// return nil
 }
 
 func (r RedisConnection) Send(value []serde.Value) error {
-	r.connMutex.Lock()
-	defer r.connMutex.Unlock()
 
 	var err error
 
@@ -149,20 +126,31 @@ func (r RedisConnection) Send(value []serde.Value) error {
 		}
 	}
 
+	slog.Debug(fmt.Sprintf("Sent %v", value))
 	return err
 }
 
-func (r RedisConnection) Read() (serde.Value, error) {
-	r.connMutex.Lock()
-	defer r.connMutex.Unlock()
+func (r RedisConnection) WithReadMutex(f func() error) error {
+	r.readMutex.Lock()
+	defer r.readMutex.Unlock()
+	return f()
+}
 
+func (r RedisConnection) WithWriteMutex(f func() error) error {
+	r.writeMutex.Lock()
+	defer r.writeMutex.Unlock()
+	return f()
+}
+
+func (r RedisConnection) Read() (serde.Value, error) {
 	return r.reader.Read()
 }
 
-func (r RedisConnection) ReadRDB() error {
-	r.connMutex.Lock()
-	defer r.connMutex.Unlock()
+func (r RedisConnection) CanRead() bool {
+	return r.reader.CanRead()
+}
 
+func (r RedisConnection) ReadRDB() error {
 	return r.reader.ReadRDB()
 }
 
@@ -175,9 +163,11 @@ func NewRedisConnection(c net.Conn) RedisConnection {
 	writer := serde.NewWriter(c)
 
 	return RedisConnection{
-		reader:    &reader,
-		writer:    writer,
-		conn:      c,
-		connMutex: &sync.RWMutex{},
+		reader:     &reader,
+		writer:     writer,
+		conn:       c,
+		readMutex:  &sync.Mutex{},
+		writeMutex: &sync.Mutex{},
+		id:         uniuri.NewLen(40),
 	}
 }

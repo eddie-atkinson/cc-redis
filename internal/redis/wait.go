@@ -2,12 +2,10 @@ package redis
 
 import (
 	"codecrafters/internal/serde"
-	"fmt"
+	"log/slog"
 	"strconv"
 	"time"
 )
-
-const INFINITE_WAIT_TIME = 0
 
 func (r *Redis) wait(args []string) []serde.Value {
 	if len(args) != 2 {
@@ -28,46 +26,35 @@ func (r *Redis) wait(args []string) []serde.Value {
 
 	bytesNeeded := r.processedByteCount
 
-	fmt.Printf("In master want %v", r.processedByteCount)
-
 	ackChan := make(chan ReplicaAck)
 	defer close(ackChan)
 
-	caughtUp := 0
-	startTime := time.Now()
-
-	for id, replica := range r.replicas {
-		go func(replica Replica) {
-			err := replica.connection.ReplConfGetAck(id, ackChan)
+	for _, replica := range r.replicas {
+		go func() {
+			err := replica.ReplConfGetAck()
 			if err != nil {
-				fmt.Println("Error getting replication ack from replica:", err)
+				slog.Error("Error getting replication ack from replica:", err)
 			}
-		}(replica)
+		}()
 	}
 
-	for caughtUp < replicasNeeded && time.Since(startTime) < time.Duration(timeoutMs)*time.Millisecond {
+	caughtUp := map[string]RedisConnection{}
+
+ReplicaWaitLoop:
+	for len(caughtUp) < replicasNeeded {
 		select {
-		case ack, ok := <-ackChan:
-			fmt.Printf("received ack %v, ok %v", ack, ok)
-			if !ok {
-				return []serde.Value{serde.NewError("error receiving replica acknowledgment")}
+		case ack := <-r.ackChan:
+			{
+				if ack.processedByteCount >= bytesNeeded {
+					caughtUp[ack.connectionId] = r.replicas[ack.connectionId]
+				}
 			}
-			replica, ok := r.replicas[ack.connectionId]
-
-			if !ok {
-				continue
-			}
-
-			replica.processedByteCount = ack.processedByteCount
-
-			if replica.processedByteCount > bytesNeeded {
-				caughtUp++
-			}
-
 		case <-time.After(time.Duration(timeoutMs) * time.Millisecond):
-			return []serde.Value{serde.NewInteger(int64(caughtUp))}
+			{
+				break ReplicaWaitLoop
+			}
 		}
 	}
 
-	return []serde.Value{serde.NewInteger(int64(caughtUp))}
+	return []serde.Value{serde.NewInteger(int64(len(caughtUp)))}
 }
