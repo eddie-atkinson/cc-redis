@@ -26,10 +26,14 @@ func (r *Redis) wait(args []string) []serde.Value {
 
 	bytesNeeded := r.processedByteCount
 
-	ackChan := make(chan ReplicaAck)
-	defer close(ackChan)
-
+	caughtUp := map[string]RedisConnection{}
 	for _, replica := range r.replicas {
+		// If we already know they're up to date, don't waste time
+		if replica.processedByteCount >= bytesNeeded {
+			caughtUp[replica.id] = replica
+			continue
+		}
+
 		go func() {
 			err := replica.ReplConfGetAck()
 			if err != nil {
@@ -37,8 +41,6 @@ func (r *Redis) wait(args []string) []serde.Value {
 			}
 		}()
 	}
-
-	caughtUp := map[string]RedisConnection{}
 
 ReplicaWaitLoop:
 	for len(caughtUp) < replicasNeeded {

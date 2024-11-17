@@ -45,7 +45,9 @@ func handleSlaveReplicationConnection(r *Redis, connection RedisConnection) {
 			r.processedByteCount += len(value.Marshal())
 
 			if cmd == REPLCONF {
-				connection.Send(response)
+				connection.WithWriteMutex(func() error {
+					return connection.Send(response)
+				})
 			}
 			return err
 		})

@@ -96,7 +96,6 @@ func (r *Redis) handleConnection(c net.Conn) {
 			value, err := connection.Read()
 
 			if err != nil {
-				slog.Error(fmt.Sprintf("Failed read with error %v", err))
 				return err
 			}
 
@@ -119,7 +118,7 @@ func (r *Redis) handleConnection(c net.Conn) {
 			if err == io.EOF {
 				return
 			} else {
-				fmt.Println("Error reading from the client: ", err.Error())
+				slog.Error(fmt.Sprintf("Error reading from the client %v", err))
 				return
 			}
 		}

@@ -106,10 +106,7 @@ func (r RedisConnection) ReplConfGetAck() error {
 			return serde.NewBulkString(s)
 		})
 		err := r.Send([]serde.Value{serde.NewArray(commandArr)})
-
-		if err != nil {
-			return err
-		}
+		slog.Info(fmt.Sprintf("Master sent replconf get ack with err %v", err))
 
 		return err
 	})

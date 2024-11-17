@@ -3,6 +3,7 @@ package redis
 import (
 	"codecrafters/internal/serde"
 	"fmt"
+	"log/slog"
 	"strconv"
 )
 
@@ -15,6 +16,7 @@ func (r Redis) replconf(args []string, connection RedisConnection) []serde.Value
 	switch args[0] {
 	case "GETACK":
 		{
+			slog.Debug(fmt.Sprintf("Slave received GETACK with command %v", args))
 			if args[1] != "*" {
 				return []serde.Value{serde.NewError("expected REPLCONF GETACK *")}
 			}
@@ -30,6 +32,7 @@ func (r Redis) replconf(args []string, connection RedisConnection) []serde.Value
 			if err != nil {
 				return []serde.Value{serde.NewError("REPLCONF ACK takes a number for offset")}
 			}
+			slog.Debug(fmt.Sprintf("Master received ACK back from slave %v with %v as processedBytes", connection.id, processedBytes))
 			// TODO: probably needs a lock?
 			connection.processedByteCount = processedBytes
 			r.ackChan <- ReplicaAck{connectionId: connection.id, processedByteCount: processedBytes}
