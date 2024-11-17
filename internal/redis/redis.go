@@ -22,6 +22,7 @@ const (
 	REPLCONF = "replconf"
 	PSYNC    = "psync"
 	WAIT     = "wait"
+	TYPE     = "type"
 )
 
 type Redis struct {
@@ -167,6 +168,8 @@ func (r *Redis) executeCommand(ctx context.Context, value serde.Value, connectio
 		return PSYNC, r.psync(connection)
 	case WAIT:
 		return WAIT, r.wait(commandArray[1:])
+	case TYPE:
+		return TYPE, r.typeCmd(ctx, commandArray[1:])
 	default:
 		return "", []serde.Value{serde.NewError(fmt.Sprintf("invalid command %s", commands))}
 	}
