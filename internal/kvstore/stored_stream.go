@@ -61,7 +61,7 @@ type StoredStream struct {
 func (ss StoredStream) generateStreamId(ctx context.Context, input string) (StreamId, error) {
 
 	now := time.NowMilli(clock.FromContext(ctx))
-	newId := StreamId{timestamp: now, seqNo: 1}
+	newId := StreamId{timestamp: now, seqNo: 0}
 	if input == WILDCARD {
 		return newId, nil
 	}

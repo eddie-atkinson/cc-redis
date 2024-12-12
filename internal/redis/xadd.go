@@ -48,5 +48,5 @@ func (r Redis) xadd(ctx context.Context, args []string) []serde.Value {
 		return []serde.Value{serde.NewError(err.Error())}
 	}
 
-	return []serde.Value{serde.NewSimpleString(insertedId.ToString())}
+	return []serde.Value{serde.NewBulkString(insertedId.ToString())}
 }
