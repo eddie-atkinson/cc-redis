@@ -41,22 +41,22 @@ func (s KVStore) SetKeyWithExpiry(ctx context.Context, key string, value string,
 	return storedValue
 }
 
-func (s KVStore) SetStream(ctx context.Context, key string, streamId StreamId, value map[string]string) (StoredStream, error) {
+func (s KVStore) SetStream(ctx context.Context, key string, id string, value map[string]string) (StreamId, StoredStream, error) {
 	existingStream, exists := s.getStream(ctx, key)
 
 	if !exists {
 		existingStream = NewStoredStream()
 	}
 
-	err := existingStream.Insert(streamId, value)
+	streamId, err := existingStream.Insert(ctx, id, value)
 
 	if err != nil {
-		return existingStream, err
+		return streamId, existingStream, err
 	}
 
 	s.setKey(key, existingStream)
 
-	return existingStream, nil
+	return streamId, existingStream, nil
 }
 
 func (s KVStore) getStream(ctx context.Context, key string) (StoredStream, bool) {

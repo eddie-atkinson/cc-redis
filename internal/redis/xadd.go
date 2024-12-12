@@ -1,7 +1,6 @@
 package redis
 
 import (
-	"codecrafters/internal/kvstore"
 	"codecrafters/internal/serde"
 	"context"
 	"fmt"
@@ -31,11 +30,7 @@ func (r Redis) xadd(ctx context.Context, args []string) []serde.Value {
 	}
 
 	key := args[0]
-	id, err := kvstore.ParseStreamId(args[1])
-
-	if err != nil {
-		return []serde.Value{serde.NewError(err.Error())}
-	}
+	id := args[1]
 
 	parsedArgs, err := parseXaddArgs(args[2:])
 
@@ -47,11 +42,11 @@ func (r Redis) xadd(ctx context.Context, args []string) []serde.Value {
 		return []serde.Value{serde.NewError(err.Error())}
 	}
 
-	_, err = r.store.SetStream(ctx, key, id, parsedArgs)
+	insertedId, _, err := r.store.SetStream(ctx, key, id, parsedArgs)
 
 	if err != nil {
 		return []serde.Value{serde.NewError(err.Error())}
 	}
 
-	return []serde.Value{serde.NewSimpleString(id.ToString())}
+	return []serde.Value{serde.NewSimpleString(insertedId.ToString())}
 }
