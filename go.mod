@@ -14,4 +14,7 @@ require github.com/tilinna/clock v1.1.0
 
 require github.com/deckarep/golang-set/v2 v2.6.0
 
-require github.com/dchest/uniuri v1.2.0 // indirect
+require (
+	github.com/armon/go-radix v1.0.0 // indirect
+	github.com/dchest/uniuri v1.2.0 // indirect
+)

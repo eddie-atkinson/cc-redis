@@ -172,7 +172,7 @@ func (r *Redis) executeCommand(ctx context.Context, value serde.Value, connectio
 	case TYPE:
 		return TYPE, r.typeCmd(ctx, commandArray[1:])
 	case XADD:
-		return XADD, r.xadd(commandArray[1:])
+		return XADD, r.xadd(ctx, commandArray[1:])
 	default:
 		return "", []serde.Value{serde.NewError(fmt.Sprintf("invalid command %s", commands))}
 	}

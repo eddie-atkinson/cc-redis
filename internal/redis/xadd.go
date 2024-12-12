@@ -1,7 +1,9 @@
 package redis
 
 import (
+	"codecrafters/internal/kvstore"
 	"codecrafters/internal/serde"
+	"context"
 	"fmt"
 )
 
@@ -13,7 +15,6 @@ func parseXaddArgs(args []string) (map[string]string, error) {
 		return parsedArgs, fmt.Errorf("args to XADD must be key value pairs %v", args)
 	}
 
-	// TODO (eatkinson): Support more arguments and clean up the parsing here
 	for i := 0; i < len(args); i = i + 2 {
 		key := args[i]
 		value := args[i+1]
@@ -24,25 +25,33 @@ func parseXaddArgs(args []string) (map[string]string, error) {
 	return parsedArgs, nil
 }
 
-func (r Redis) xadd(args []string) []serde.Value {
+func (r Redis) xadd(ctx context.Context, args []string) []serde.Value {
 	if len(args) < 4 {
 		return []serde.Value{serde.NewError("SET expects at least four arguments")}
 	}
 
 	key := args[0]
-	id := args[1]
+	id, err := kvstore.ParseStreamId(args[1])
+
+	if err != nil {
+		return []serde.Value{serde.NewError(err.Error())}
+	}
 
 	parsedArgs, err := parseXaddArgs(args[2:])
 
-	valueToStore := map[string]map[string]string{
-		id: parsedArgs,
+	if err != nil {
+		return []serde.Value{serde.NewError(err.Error())}
 	}
 
 	if err != nil {
 		return []serde.Value{serde.NewError(err.Error())}
 	}
 
-	r.store.SetStream(key, valueToStore)
+	_, err = r.store.SetStream(ctx, key, id, parsedArgs)
 
-	return []serde.Value{serde.NewSimpleString(id)}
+	if err != nil {
+		return []serde.Value{serde.NewError(err.Error())}
+	}
+
+	return []serde.Value{serde.NewSimpleString(id.ToString())}
 }

@@ -25,8 +25,8 @@ func TestKVStore_SetKeyWithExpiry(t *testing.T) {
 	mock := clock.NewMock(start)
 	ctx, _ := mock.DeadlineContext(context.Background(), start)
 
-	store.SetKeyWithExpiry(ctx, eternalKey, eternalValue, eternalExpiry)
-	store.SetKeyWithExpiry(ctx, limitedKey, limitedValue, limitedExpiry)
+	store.SetKeyWithExpiry(ctx, eternalKey, eternalValue.value, eternalExpiry)
+	store.SetKeyWithExpiry(ctx, limitedKey, limitedValue.value, limitedExpiry)
 
 	// Test initial retrieval where there's no expiry
 	mock = clock.NewMock(start.Add(time.Millisecond * 500))
