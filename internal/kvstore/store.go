@@ -59,6 +59,18 @@ func (s KVStore) SetStream(ctx context.Context, key string, id string, value map
 	return streamId, existingStream, nil
 }
 
+func (s KVStore) ReadStream(ctx context.Context, key string, startId string) ([]StreamQueryResult, error) {
+	id, err := parseStreamId(startId)
+
+	if err != nil {
+		return []StreamQueryResult{}, err
+	}
+
+	actualStartId := StreamId{id.timestamp, id.seqNo + 1}
+
+	return s.QueryStream(ctx, key, actualStartId.ToString(), END_OF_STREAM)
+}
+
 func (s KVStore) QueryStream(ctx context.Context, key string, startId string, endId string) ([]StreamQueryResult, error) {
 	result := []StreamQueryResult{}
 

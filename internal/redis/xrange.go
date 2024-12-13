@@ -2,9 +2,26 @@ package redis
 
 import (
 	"codecrafters/internal/array"
+	"codecrafters/internal/kvstore"
 	"codecrafters/internal/serde"
+
 	"context"
 )
+
+func processXRangeOutput(queryResult []kvstore.StreamQueryResult) serde.Array {
+	outputArr := []serde.Value{}
+
+	for _, res := range queryResult {
+		kvArr := []serde.Value{serde.NewBulkString(res.Id)}
+		serialisedKV := array.Map(res.Values, func(s string) serde.Value {
+			return serde.NewBulkString(s)
+		})
+
+		kvArr = append(kvArr, serde.NewArray(serialisedKV))
+		outputArr = append(outputArr, serde.NewArray(kvArr))
+	}
+	return serde.NewArray(outputArr)
+}
 
 func (r Redis) xrange(ctx context.Context, args []string) []serde.Value {
 	if len(args) < 3 {
@@ -21,17 +38,5 @@ func (r Redis) xrange(ctx context.Context, args []string) []serde.Value {
 		return []serde.Value{serde.NewError(err.Error())}
 	}
 
-	outputArr := []serde.Value{}
-
-	for _, res := range queryResult {
-		kvArr := []serde.Value{serde.NewBulkString(res.Id)}
-		serialisedKV := array.Map(res.Values, func(s string) serde.Value {
-			return serde.NewBulkString(s)
-		})
-
-		kvArr = append(kvArr, serde.NewArray(serialisedKV))
-		outputArr = append(outputArr, serde.NewArray(kvArr))
-	}
-
-	return []serde.Value{serde.NewArray(outputArr)}
+	return []serde.Value{processXRangeOutput(queryResult)}
 }

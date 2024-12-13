@@ -76,10 +76,6 @@ func parseStreamId(input string) (StreamId, error) {
 		return StreamId{}, errors.New("ERR The ID specified in XADD must be greater than 0-0")
 	}
 
-	if msTime == 0 && seqNo == 0 {
-		return StreamId{}, errors.New("ERR The ID specified in XADD must be greater than 0-0")
-	}
-
 	return StreamId{timestamp: uint64(msTime), seqNo: uint64(seqNo)}, nil
 
 }

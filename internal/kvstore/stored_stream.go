@@ -67,6 +67,10 @@ func (ss StoredStream) generateStreamId(ctx context.Context, input string) (Stre
 	return id, err
 }
 func (ss StoredStream) validateInsertionKey(key StreamId) error {
+	if key.timestamp == 0 && key.seqNo == 0 {
+		return errors.New("ERR The ID specified in XADD must be greater than 0-0")
+	}
+
 	lastKey, _, exists := ss.value.Maximum()
 
 	if !exists {
