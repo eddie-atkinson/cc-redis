@@ -26,7 +26,7 @@ func parseXaddArgs(args []string) (map[string]string, error) {
 
 func (r Redis) xadd(ctx context.Context, args []string) []serde.Value {
 	if len(args) < 4 {
-		return []serde.Value{serde.NewError("SET expects at least four arguments")}
+		return []serde.Value{serde.NewError("XADD expects at least four arguments")}
 	}
 
 	key := args[0]

@@ -13,49 +13,13 @@ import (
 	"github.com/tilinna/clock"
 )
 
-type StreamId struct {
-	timestamp uint64
-	seqNo     uint64
-}
-
-const (
-	STREAM_ID_DELIMETER = "-"
-	WILDCARD            = "*"
-)
-
-func parseStreamId(input string) (StreamId, error) {
-	parts := strings.Split(input, STREAM_ID_DELIMETER)
-	if len(parts) != 2 {
-		return StreamId{}, fmt.Errorf("expected two parts in stream ID got %d", len(parts))
-	}
-	msTime, err := strconv.Atoi(parts[0])
-
-	if err != nil {
-		return StreamId{}, err
-	}
-	seqNo, err := strconv.Atoi(parts[1])
-
-	if err != nil {
-		return StreamId{}, err
-	}
-	if seqNo < 1 {
-		return StreamId{}, errors.New("ERR The ID specified in XADD must be greater than 0-0")
-	}
-
-	if msTime < 0 {
-		return StreamId{}, errors.New("ERR The ID specified in XADD must be greater than 0-0")
-	}
-
-	return StreamId{timestamp: uint64(msTime), seqNo: uint64(seqNo)}, nil
-
-}
-
-func (id StreamId) ToString() string {
-	return fmt.Sprintf("%d-%d", id.timestamp, id.seqNo)
-}
-
 type StoredStream struct {
 	value radix.Tree
+}
+
+type StreamQueryResult struct {
+	Id     string
+	Values []string
 }
 
 func (ss StoredStream) generateStreamId(ctx context.Context, input string) (StreamId, error) {

@@ -24,6 +24,7 @@ const (
 	WAIT     = "wait"
 	TYPE     = "type"
 	XADD     = "xadd"
+	XRANGE   = "xrange"
 )
 
 type Redis struct {
@@ -173,6 +174,8 @@ func (r *Redis) executeCommand(ctx context.Context, value serde.Value, connectio
 		return TYPE, r.typeCmd(ctx, commandArray[1:])
 	case XADD:
 		return XADD, r.xadd(ctx, commandArray[1:])
+	case XRANGE:
+		return XRANGE, r.xrange(ctx, commandArray[1:])
 	default:
 		return "", []serde.Value{serde.NewError(fmt.Sprintf("invalid command %s", commands))}
 	}

@@ -59,6 +59,52 @@ func (s KVStore) SetStream(ctx context.Context, key string, id string, value map
 	return streamId, existingStream, nil
 }
 
+func (s KVStore) QueryStream(ctx context.Context, key string, startId string, endId string) ([]StreamQueryResult, error) {
+	result := []StreamQueryResult{}
+
+	existingStream, exists := s.getStream(ctx, key)
+
+	if !exists {
+		return result, nil
+	}
+
+	startStreamId, err := GetQueryStreamId(startId)
+
+	if err != nil {
+		return result, err
+	}
+
+	endStreamId, err := GetQueryStreamId(endId)
+
+	if err != nil {
+		return result, err
+	}
+
+	existingStream.value.Walk(func(s string, v interface{}) bool {
+
+		if err != nil || s < startStreamId.ToString() || s > endStreamId.ToString() {
+			return false
+		}
+
+		maybeMap, ok := v.(map[string]string)
+
+		if !ok {
+			return false
+		}
+
+		kvList := []string{}
+
+		for k, v := range maybeMap {
+			kvList = append(kvList, k)
+			kvList = append(kvList, v)
+		}
+		result = append(result, StreamQueryResult{s, kvList})
+		return false
+	})
+
+	return result, nil
+}
+
 func (s KVStore) getStream(ctx context.Context, key string) (StoredStream, bool) {
 	existingStream, exists := s.GetKey(ctx, key)
 
