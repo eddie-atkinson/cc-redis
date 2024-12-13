@@ -22,6 +22,11 @@ type StreamQueryResult struct {
 	Values []string
 }
 
+type BlockingQueryResult struct {
+	Key    string
+	Values []StreamQueryResult
+}
+
 func (ss StoredStream) generateStreamId(ctx context.Context, input string) (StreamId, error) {
 
 	now := time.NowMilli(clock.FromContext(ctx))

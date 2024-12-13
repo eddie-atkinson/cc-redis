@@ -38,10 +38,6 @@ func (r Redis) xadd(ctx context.Context, args []string) []serde.Value {
 		return []serde.Value{serde.NewError(err.Error())}
 	}
 
-	if err != nil {
-		return []serde.Value{serde.NewError(err.Error())}
-	}
-
 	insertedId, _, err := r.store.SetStream(ctx, key, id, parsedArgs)
 
 	if err != nil {

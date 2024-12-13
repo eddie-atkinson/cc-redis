@@ -15,9 +15,40 @@ type StoredValue interface {
 	IsExpired(context.Context) bool
 }
 
+type storeChan struct {
+	key   string
+	id    StreamId
+	value map[string]string
+}
+
 type KVStore struct {
-	store      map[string]StoredValue
-	storeMutex *sync.RWMutex
+	store             map[string]StoredValue
+	storeMutex        *sync.RWMutex
+	streamSubscribers map[string][]chan storeChan
+	subscribersMutex  *sync.RWMutex
+}
+
+func (s *KVStore) Subscribe(key string, ch chan storeChan) {
+	s.subscribersMutex.Lock()
+	defer s.subscribersMutex.Unlock()
+	s.streamSubscribers[key] = append(s.streamSubscribers[key], ch)
+}
+
+func (s *KVStore) Unsubscribe(key string, ch chan storeChan) {
+	s.subscribersMutex.Lock()
+	defer s.subscribersMutex.Unlock()
+
+	subs := s.streamSubscribers[key]
+	for i, sub := range subs {
+		if sub == ch {
+			s.streamSubscribers[key] = append(subs[:i], subs[i+1:]...)
+			break
+		}
+	}
+
+	if len(s.streamSubscribers[key]) == 0 {
+		delete(s.streamSubscribers, key)
+	}
 }
 
 func (s KVStore) SetKeyWithExpiresAt(key string, value string, expiresAtMs *uint64) StoredValue {
@@ -56,11 +87,44 @@ func (s KVStore) SetStream(ctx context.Context, key string, id string, value map
 
 	s.setKey(key, existingStream)
 
+	s.subscribersMutex.RLock()
+	defer s.subscribersMutex.RUnlock()
+
+	for _, ch := range s.streamSubscribers[key] {
+		select {
+		case ch <- storeChan{key, streamId, value}:
+		default:
+			// Non-blocking send to avoid blocking SetStream if a subscriber is slow
+			// or has already timed out.
+		}
+	}
+
 	return streamId, existingStream, nil
 }
 
 func (s KVStore) ReadStream(ctx context.Context, key string, startId string) ([]StreamQueryResult, error) {
 	return s.QueryStream(ctx, key, startId, END_OF_STREAM)
+}
+
+func (s KVStore) ReadStreamBlocking(ctx context.Context, key string, startId string, result chan BlockingQueryResult) {
+	defer close(result)
+	ch := make(chan storeChan)
+	s.Subscribe(key, ch)
+	defer s.Unsubscribe(key, ch)
+
+	select {
+	case <-ctx.Done():
+		return
+	case data := <-ch:
+		if data.key == key && data.id.ToString() > startId {
+			queryResult, err := s.ReadStream(ctx, key, data.id.ToString())
+			if err != nil {
+				return
+			}
+			result <- BlockingQueryResult{data.key, queryResult}
+		}
+	}
+
 }
 
 func (s KVStore) QueryStream(ctx context.Context, key string, startId string, endId string) ([]StreamQueryResult, error) {
@@ -185,7 +249,9 @@ func (s KVStore) deleteKey(key string) {
 
 func NewKVStore() KVStore {
 	return KVStore{
-		store:      map[string]StoredValue{},
-		storeMutex: &sync.RWMutex{},
+		store:             map[string]StoredValue{},
+		storeMutex:        &sync.RWMutex{},
+		subscribersMutex:  &sync.RWMutex{},
+		streamSubscribers: map[string][]chan storeChan{},
 	}
 }
