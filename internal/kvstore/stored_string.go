@@ -26,3 +26,7 @@ func (ss StoredString) Type() string {
 func (ss StoredString) Value() serde.Value {
 	return serde.NewBulkString(ss.value)
 }
+
+func (ss StoredString) ToString() string {
+	return ss.value
+}

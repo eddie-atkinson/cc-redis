@@ -26,6 +26,7 @@ const (
 	XADD     = "xadd"
 	XRANGE   = "xrange"
 	XREAD    = "xread"
+	INCR     = "incr"
 )
 
 type Redis struct {
@@ -179,6 +180,8 @@ func (r *Redis) executeCommand(ctx context.Context, value serde.Value, connectio
 		return XRANGE, r.xrange(ctx, commandArray[1:])
 	case XREAD:
 		return XREAD, r.xread(ctx, commandArray[1:])
+	case INCR:
+		return INCR, r.incr(ctx, commandArray[1:])
 	default:
 		return "", []serde.Value{serde.NewError(fmt.Sprintf("invalid command %s", commands))}
 	}
