@@ -30,6 +30,7 @@ const (
 	INCR     = "incr"
 	MULTI    = "multi"
 	EXEC     = "exec"
+	DISCARD  = "discard"
 )
 
 type Redis struct {
@@ -137,6 +138,20 @@ func (r *Redis) handleConnection(c net.Conn) {
 					}
 					connection.transaction = true
 					return connection.Send(r.multi(ctx, []string{}))
+				}
+			case DISCARD:
+				{
+					if connection.transaction {
+						connection.transaction = false
+						connection.bufferedCommands = []serde.Value{}
+
+						return connection.WithWriteMutex(func() error {
+							return connection.Send([]serde.Value{serde.NewSimpleString("OK")})
+						})
+					}
+					return connection.WithWriteMutex(func() error {
+						return connection.Send([]serde.Value{serde.NewError("ERR DISCARD without MULTI")})
+					})
 				}
 			case EXEC:
 				{
