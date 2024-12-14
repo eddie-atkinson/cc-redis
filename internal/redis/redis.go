@@ -152,6 +152,10 @@ func (r *Redis) handleConnection(c net.Conn) {
 				}
 			default:
 				{
+					if connection.transaction {
+						connection.bufferedCommands = append(connection.bufferedCommands, value)
+						return connection.WithWriteMutex(func() error { return connection.Send([]serde.Value{serde.NewSimpleString("QUEUED")}) })
+					}
 					response, err := r.executeAndMaybePropagate(ctx, cmd, args, value, connection)
 					if err != nil {
 						return err
