@@ -131,15 +131,22 @@ func (r *Redis) handleConnection(c net.Conn) {
 			case MULTI:
 				{
 					if connection.transaction {
-						connection.WithWriteMutex(func() error {
+						return connection.WithWriteMutex(func() error {
 							return connection.Send([]serde.Value{serde.NewError("ERR MULTI calls can not be nested")})
 						})
 					}
+					connection.transaction = true
 					return connection.Send(r.multi(ctx, []string{}))
 				}
 			case EXEC:
 				{
+					if !connection.transaction {
+						return connection.WithWriteMutex(func() error {
+							return connection.Send([]serde.Value{serde.NewError("ERR EXEC without MULTI")})
+						})
+					}
 					response := r.exec(ctx, args, connection)
+					connection.transaction = false
 					err = connection.WithWriteMutex(func() error { return connection.Send(response) })
 					return err
 				}
@@ -153,7 +160,6 @@ func (r *Redis) handleConnection(c net.Conn) {
 				}
 			}
 
-			return err
 		})
 
 		if err != nil {

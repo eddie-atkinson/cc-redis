@@ -24,5 +24,6 @@ func (r Redis) exec(ctx context.Context, _ []string, connection RedisConnection)
 			result = append(result, v)
 		}
 	}
-	return result
+
+	return []serde.Value{serde.NewArray(result)}
 }
