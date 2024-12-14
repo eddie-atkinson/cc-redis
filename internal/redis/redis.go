@@ -4,6 +4,7 @@ import (
 	"codecrafters/internal/kvstore"
 	"codecrafters/internal/serde"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -28,6 +29,7 @@ const (
 	XREAD    = "xread"
 	INCR     = "incr"
 	MULTI    = "multi"
+	EXEC     = "exec"
 )
 
 type Redis struct {
@@ -92,6 +94,20 @@ func isWriteCommand(cmd string) bool {
 	}
 }
 
+func (r *Redis) executeAndMaybePropagate(ctx context.Context, cmd string, args []string, value serde.Value, connection RedisConnection) ([]serde.Value, error) {
+	cmd, response := r.executeCommand(ctx, cmd, args, connection)
+
+	if isWriteCommand(cmd) {
+		for _, replica := range r.replicas {
+			replica.WithWriteMutex(func() error {
+				return replica.Send([]serde.Value{value})
+			})
+		}
+		r.processedByteCount += len(value.Marshal())
+	}
+	return response, nil
+}
+
 func (r *Redis) handleConnection(c net.Conn) {
 	connection := NewRedisConnection(c)
 	defer connection.Close()
@@ -105,18 +121,38 @@ func (r *Redis) handleConnection(c net.Conn) {
 				return err
 			}
 
-			cmd, response := r.executeCommand(ctx, value, connection)
+			cmd, args, err := r.parseCommand(value)
 
-			if isWriteCommand(cmd) {
-				for _, replica := range r.replicas {
-					replica.WithWriteMutex(func() error {
-						return replica.Send([]serde.Value{value})
-					})
-				}
-				r.processedByteCount += len(value.Marshal())
+			if err != nil {
+				return err
 			}
 
-			err = connection.WithWriteMutex(func() error { return connection.Send(response) })
+			switch cmd {
+			case MULTI:
+				{
+					if connection.transaction {
+						connection.WithWriteMutex(func() error {
+							return connection.Send([]serde.Value{serde.NewError("ERR MULTI calls can not be nested")})
+						})
+					}
+					return connection.Send(r.multi(ctx, []string{}))
+				}
+			case EXEC:
+				{
+					response := r.exec(ctx, args, connection)
+					err = connection.WithWriteMutex(func() error { return connection.Send(response) })
+					return err
+				}
+			default:
+				{
+					response, err := r.executeAndMaybePropagate(ctx, cmd, args, value, connection)
+					if err != nil {
+						return err
+					}
+					return connection.WithWriteMutex(func() error { return connection.Send(response) })
+				}
+			}
+
 			return err
 		})
 
@@ -132,60 +168,66 @@ func (r *Redis) handleConnection(c net.Conn) {
 	}
 }
 
-func (r *Redis) executeCommand(ctx context.Context, value serde.Value, connection RedisConnection) (string, []serde.Value) {
+func (r *Redis) parseCommand(value serde.Value) (string, []string, error) {
 	commands, ok := value.(serde.Array)
 
 	if !ok {
-		return "", []serde.Value{serde.NewError("Expected commands to be array")}
+		return "", []string{}, errors.New("expected commands to be array")
 
 	}
+
 	commandArray, err := commands.ToCommandArray()
 
 	if err != nil {
-		return "", []serde.Value{serde.NewError(err.Error())}
+		return "", []string{}, err
 	}
 
 	if len(commandArray) == 0 {
-		return "", []serde.Value{serde.NewError("empty commands array")}
+		return "", []string{}, errors.New("empty commands array")
 
 	}
 
 	cmd := strings.ToLower(commandArray[0])
 
+	return cmd, commandArray[1:], nil
+}
+
+func (r *Redis) executeCommand(ctx context.Context, cmd string, commandArray []string, connection RedisConnection) (string, []serde.Value) {
+
 	switch cmd {
 	case PING:
 		return PING, r.ping()
 	case ECHO:
-		return ECHO, r.echo(commandArray[1:])
+		return ECHO, r.echo(commandArray)
 	case SET:
-		return SET, r.set(ctx, commandArray[1:])
+		return SET, r.set(ctx, commandArray)
 	case GET:
-		return GET, r.get(ctx, commandArray[1:])
+		return GET, r.get(ctx, commandArray)
 	case CONFIG:
-		return CONFIG, r.config(commandArray[1:])
+		return CONFIG, r.config(commandArray)
 	case KEYS:
-		return KEYS, r.keys(ctx, commandArray[1:])
+		return KEYS, r.keys(ctx, commandArray)
 	case INFO:
-		return INFO, r.info(commandArray[1:])
+		return INFO, r.info(commandArray)
 	case REPLCONF:
-		return REPLCONF, r.replconf(commandArray[1:], connection)
+		return REPLCONF, r.replconf(commandArray, connection)
 	case PSYNC:
 		return PSYNC, r.psync(connection)
 	case WAIT:
-		return WAIT, r.wait(commandArray[1:])
+		return WAIT, r.wait(commandArray)
 	case TYPE:
-		return TYPE, r.typeCmd(ctx, commandArray[1:])
+		return TYPE, r.typeCmd(ctx, commandArray)
 	case XADD:
-		return XADD, r.xadd(ctx, commandArray[1:])
+		return XADD, r.xadd(ctx, commandArray)
 	case XRANGE:
-		return XRANGE, r.xrange(ctx, commandArray[1:])
+		return XRANGE, r.xrange(ctx, commandArray)
 	case XREAD:
-		return XREAD, r.xread(ctx, commandArray[1:])
+		return XREAD, r.xread(ctx, commandArray)
 	case INCR:
-		return INCR, r.incr(ctx, commandArray[1:])
+		return INCR, r.incr(ctx, commandArray)
 	case MULTI:
-		return MULTI, r.multi(ctx, commandArray[1:])
+		return MULTI, r.multi(ctx, commandArray)
 	default:
-		return "", []serde.Value{serde.NewError(fmt.Sprintf("invalid command %s", commands))}
+		return "", []serde.Value{serde.NewError(fmt.Sprintf("invalid command %s %v", cmd, commandArray))}
 	}
 }

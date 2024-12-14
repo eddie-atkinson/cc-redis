@@ -40,7 +40,13 @@ func handleSlaveReplicationConnection(r *Redis, connection RedisConnection) {
 				return err
 			}
 			slog.Debug(fmt.Sprintf("Received cmd %v in slave", value))
-			cmd, response := r.executeCommand(ctx, value, connection)
+			cmd, args, err := r.parseCommand(value)
+
+			if err != nil {
+				return err
+			}
+
+			cmd, response := r.executeCommand(ctx, cmd, args, connection)
 
 			r.processedByteCount += len(value.Marshal())
 

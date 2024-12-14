@@ -20,6 +20,8 @@ type RedisConnection struct {
 	writeMutex         *sync.Mutex
 	id                 string
 	processedByteCount int
+	transaction        bool
+	bufferedCommands   []serde.Value
 }
 
 func (r RedisConnection) Ping() error {
@@ -159,11 +161,13 @@ func NewRedisConnection(c net.Conn) RedisConnection {
 	writer := serde.NewWriter(c)
 
 	return RedisConnection{
-		reader:     &reader,
-		writer:     writer,
-		conn:       c,
-		readMutex:  &sync.Mutex{},
-		writeMutex: &sync.Mutex{},
-		id:         uniuri.NewLen(40),
+		reader:           &reader,
+		writer:           writer,
+		conn:             c,
+		readMutex:        &sync.Mutex{},
+		writeMutex:       &sync.Mutex{},
+		id:               uniuri.NewLen(40),
+		transaction:      false,
+		bufferedCommands: []serde.Value{},
 	}
 }
